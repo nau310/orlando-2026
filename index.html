@@ -463,7 +463,7 @@ const SHOWS={
 // Morning logistics per lodging: minutes to the gate (vehicle + walk), safety margin, breakfast.
 const LODGE={
   airbnb:{bf:"Desayuno buffet del hotel (pago, abre 6:00)",bfMin:40,uni:{how:"Salir en auto: 25′ + 20′ del garage a la puerta",t:45,m:15},mk:{how:"Salir en auto: 10′ + 30′ de ferry o monorriel",t:40,m:10}},
-  dock:{bf:"Desayuno en Pier 8 Market (pago)",bfMin:35,uni:{how:"Bus del hotel: 20′ + 10′ a la puerta",t:30,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
+  dock:{bf:"Desayuno en Pier 8 Market (pago)",bfMin:35,uni:{how:"Bus del hotel (pasa cada ≈ 15′): 10′ de viaje + 10′ caminando a la puerta",t:25,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
   terra:{bf:"Desayuno en el patio de comidas del hotel (pago)",bfMin:35,uni:{how:"Bus del hotel: 20′ + 10′ a la puerta",t:30,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
   allstar:{bf:"Desayuno en el patio de comidas del hotel (pago)",bfMin:35,uni:{how:"Salir en auto: 25′ + 20′ del garage a la puerta",t:45,m:15},mk:{how:"Bus de Disney: 25′ hasta la puerta",t:25,m:10}}
 };
@@ -567,16 +567,19 @@ function dayHours(k){
   return UNI_EST[d.parks[0]];
 }
 // Wake-up, breakfast and departure before the gate. The first park day they drive in from home, before hotel check-in.
-function morning(k,gate,uni){
-  const L=LODGE[S.plan.hotel]||LODGE.airbnb;
+// Sleep rules: 8 h 30 in bed, 30 min to get ready, a sit-down breakfast. The night before sets the earliest gate time.
+const NIGHT={sleep:510,ready:30,toBed:15};
+function morning(k,gate,uni,bfMin){
+  const L=LODGE[S.plan.hotel]||LODGE.airbnb;bfMin=bfMin||L.bfMin;
   const ad=activeDays();
   if(ad[0]?.k===k) return [{type:"morning",start:gate-25,end:gate,short:"Desde casa: estacionar",label:gate>=12*60?"Llegan, dejan las valijas en el hotel y van a Magic Kingdom: estacionar y caminar a la puerta":"Llegan desde casa: desayuno en la ruta, estacionar y caminar a la puerta"}];
   const tr=uni?L.uni:L.mk;
   const last=ad.at(-1)?.k===k;
-  const leave=gate-tr.t-tr.m, bfEnd=leave-5, bfStart=bfEnd-L.bfMin, wake=bfStart-30;
+  const leave=gate-tr.t-tr.m, bfEnd=leave-5, bfStart=bfEnd-bfMin, wake=bfStart-NIGHT.ready;
+  const brunch=bfStart>=9*60+30;
   return [
     {type:"morning",start:wake,end:bfStart,short:"Levantarse",label:last?"Levantarse y cargar las valijas en el auto":"Levantarse"},
-    {type:"morning",start:bfStart,end:bfEnd,short:"Desayuno",label:L.bf},
+    {type:"morning",start:bfStart,end:bfEnd,short:brunch?"Brunch":"Desayuno",label:brunch?L.bf.replace("Desayuno","Brunch tranquilo"):L.bf},
     {type:"morning",start:leave,end:gate,short:last?"Check-out y salida":"Salida",label:(last?"Check-out. ":"")+tr.how}
   ];
 }
@@ -600,7 +603,20 @@ function waitAt(r,t,open,close,ctx){
 }
 function riderSwitch(r){return elig(r,S.plan.kidCm)==="no"}
 // The greedy pass is myopic, so it runs with several rank weights and keeps the day that rides the best-ranked set.
+// Bedtime after a park day: last item + getting back to the hotel + getting ready for bed.
+function bedtime(k){
+  const sc=schedule(k);const day=S.plan.days[k];
+  const end=Math.max(...sc.items.map(o=>o.end));
+  const back=day.parks.includes("MK")?60:35;
+  return end+back+NIGHT.toBed;
+}
+const SCHED_CACHE=new Map();
 function schedule(k,opts={}){
+  const key=k+"|"+JSON.stringify(opts);
+  if(SCHED_CACHE.has(key)) return SCHED_CACHE.get(key);
+  const r=scheduleBest(k,opts);SCHED_CACHE.set(key,r);return r;
+}
+function scheduleBest(k,opts){
   if(!opts.ignoreOrder&&S.plan.order[k]) return scheduleRun(k,opts,1);
   const val=r=>(pickOf(r)==="must"?30:2)+(13-Math.min(rankOf(r),13));
   let best=null,bv=-1;
@@ -624,9 +640,22 @@ function scheduleRun(k,opts,wx){
     ll=new Set(pool.filter(r=>r.p==="MK"&&!["MK-01","MK-02"].includes(r.c)).sort((a,b)=>(pickOf(b)==="must")-(pickOf(a)==="must")||b.w-a.w).slice(0,3).map(r=>r.c));
   }
   const ctx={epa,express:express&&uni,ll,cf:day.party?.45:(CROWD[k]?.lvl||9)/9};
-  const start=epa?open-60:open;
-  const out=[...morning(k,start-40,uni),{type:"arrive",start:start-40,end:start,label:epa?"Llegada: entrada anticipada (hotel Universal)":"Llegada a la puerta, antes de la apertura"}];
-  let t=start,pos=null,pi=0,lunch=open>=13*60,snack=false;
+  // Planned gate: 15 min before early admission, 30 min before regular opening. If the night before ends late,
+  // the morning slides until they have slept NIGHT.sleep and had a calm breakfast.
+  const L=LODGE[S.plan.hotel]||LODGE.airbnb;const tr=uni?L.uni:L.mk;
+  let start=epa?open-60:open, gate=start-(epa?15:30), bf=L.bfMin, late=false;
+  const ad=activeDays(),ix=ad.findIndex(d=>d.k===k);
+  if(ix>0){
+    const bed=bedtime(ad[ix-1].k)-24*60;
+    const earliest=bed+NIGHT.sleep+NIGHT.ready+bf+5+tr.t+tr.m;
+    if(earliest>gate){late=true;bf=45;gate=Math.ceil((earliest+10)/5)*5;start=Math.max(gate+10,epa?open-60:open)}
+  }
+  const epaOn=epa&&start<open;
+  ctx.epa=epaOn;
+  const out=[...morning(k,gate,uni,bf),{type:"arrive",start:gate,end:start,label:late?(epaOn?"Llegada, después de dormir 8 h 30: queda algo de entrada anticipada":"Llegada, después de dormir 8 h 30 (sin entrada anticipada)"):epaOn?"Llegada: entrada anticipada (hotel Universal)":"Llegada a la puerta, antes de la apertura"}];
+  const bfEnd=(out.find(o=>o.short==="Desayuno"||o.short==="Brunch")||{end:0}).end;
+  const lunchAt=Math.max(12*60+15,bfEnd+210);
+  let t=start,pos=null,pi=0,lunch=open>=13*60,snack=lunchAt>=14*60,dinner=false;
   const used=new Set();
   const manual=(!opts.ignoreOrder&&S.plan.order[k])||null;
   const prioW=r=>pickOf(r)==="must"?4:1;
@@ -638,11 +667,12 @@ function scheduleRun(k,opts,wx){
   let si=0;
   let guard=0;
   while(guard++<80){
-    if(!lunch&&t>=12*60+15){out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;continue}
+    if(!lunch&&t>=lunchAt){out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;continue}
     if(!snack&&day.party&&t>=18*60+15){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;snack=true;continue}
-    if(!snack&&!day.party&&t>=16*60&&close-t>90){out.push({type:"break",start:t,end:t+25,label:"Descanso y merienda"});t+=25;snack=true;continue}
+    if(!snack&&!day.party&&t>=16*60&&t<17*60+30&&close-t>90){out.push({type:"break",start:t,end:t+25,label:"Descanso y merienda"});t+=25;snack=true;continue}
+    if(!dinner&&!day.party&&t>=18*60+45&&close-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
     const cur=parks[pi];
-    const inEpa=epa&&t<open;
+    const inEpa=epaOn&&t<open;
     let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||(EPA_LANDS[r.p]||[]).includes(r.l)||EPA_EXTRA.includes(r.c)));
     if(inEpa&&!cands.length){t=open;continue}
     const wantSwitch=parks.length>1&&pi===0&&(t>=13*60+40||!cands.length);
@@ -674,7 +704,8 @@ function scheduleRun(k,opts,wx){
       }
       continue;
     }
-    if(pick&&!lunch&&t>=11*60+30&&t+c.total>13*60+15){out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;continue}
+    if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&close-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
+    if(pick&&!lunch&&t>=lunchAt-45&&t+c.total>lunchAt+60){out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;continue}
     if(!pick||t+c.total>close+10){
       if(parks.length>1&&pi===0){t=Math.max(t,13*60+40);continue}
       break;
@@ -737,6 +768,7 @@ async function connect(){
 // ───────────────────────── views ─────────────────────────
 const activeDays=()=>DAYS.filter(d=>S.plan.days[d.k].on);
 function render(){
+  SCHED_CACHE.clear();
   const ad=activeDays();
   if(!S.plan.days[S.day]?.on) S.day=(ad[0]||DAYS[1]).k;
   $("#validity").textContent=`${ad[0]?.k||"21"}.12 al ${ad.at(-1)?.k||"23"}.12.2026`;
