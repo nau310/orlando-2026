@@ -304,6 +304,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
         <p class="lede" style="margin:0">Cada día es un tren y cada atracción una parada, dibujadas a escala: el tramo punteado es la fila, el bloque lleno es la atracción. Tocá una parada para verla abajo.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div class="seg" id="pace" role="group" aria-label="Ritmo"></div>
         <button class="btn quiet" id="reopt">Reoptimizar todos los días</button>
       </div>
     </div>
@@ -489,7 +490,7 @@ const byId=Object.fromEntries(RIDES.map(r=>[r.id,r]));
 const defaultPlan=()=>({
   route:"G",
   days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.G.days[d.k],parks:ROUTES.G.days[d.k]||["IOA"],hours:null,express:false,party:ROUTES.G.party===d.k}])),
-  kidCm:120, epa:true,
+  kidCm:120, epa:true, pace:"calm",
   fam:{fl:{a:4,k:0},ot:{a:3,k:1}},
   order:{}, xprice:{uni:null,ll:null}, hotel:"dock"
 });
@@ -604,6 +605,13 @@ function waitAt(r,t,open,close,ctx){
 function riderSwitch(r){return elig(r,S.plan.kidCm)==="no"}
 // The greedy pass is myopic, so it runs with several rank weights and keeps the day that rides the best-ranked set.
 // Bedtime after a park day: last item + getting back to the hotel + getting ready for bed.
+const isLastDay=k=>activeDays().slice(-1)[0]?.k===k;
+// Rides already planned on an earlier day: they still fit as repeats, but new rides go first.
+function seenBefore(k){
+  const ad=activeDays(),ix=ad.findIndex(d=>d.k===k),seen=new Map();
+  for(const d of ad.slice(0,Math.max(0,ix))) for(const o of schedule(d.k).items) if(o.type==="ride"&&!o.transfer&&!seen.has(o.ride.c)) seen.set(o.ride.c,d.k);
+  return seen;
+}
 function bedtime(k){
   const sc=schedule(k);const day=S.plan.days[k];
   const end=Math.max(...sc.items.map(o=>o.end));
@@ -618,7 +626,8 @@ function schedule(k,opts={}){
 }
 function scheduleBest(k,opts){
   if(!opts.ignoreOrder&&S.plan.order[k]) return scheduleRun(k,opts,1);
-  const val=r=>(pickOf(r)==="must"?30:2)+(13-Math.min(rankOf(r),13));
+  const seen=seenBefore(k);
+  const val=r=>seen.has(r.c)?3:(pickOf(r)==="must"?30:2)+(13-Math.min(rankOf(r),13));
   let best=null,bv=-1;
   for(const wx of [0,1,2,3]){
     const sc=scheduleRun(k,opts,wx);
@@ -650,15 +659,29 @@ function scheduleRun(k,opts,wx){
     const earliest=bed+NIGHT.sleep+NIGHT.ready+bf+5+tr.t+tr.m;
     if(earliest>gate){late=true;bf=45;gate=Math.ceil((earliest+10)/5)*5;start=Math.max(gate+10,epa?open-60:open)}
   }
+  if(S.plan.pace!=="full"&&ix>0){
+    const minGate=7*60+NIGHT.ready+bf+5+tr.t+tr.m;
+    if(gate<minGate){gate=minGate;start=Math.max(gate+10,epa?open-60:open)}
+  }
   const epaOn=epa&&start<open;
   ctx.epa=epaOn;
   const out=[...morning(k,gate,uni,bf),{type:"arrive",start:gate,end:start,label:late?(epaOn?"Llegada, después de dormir 8 h 30: queda algo de entrada anticipada":"Llegada, después de dormir 8 h 30 (sin entrada anticipada)"):epaOn?"Llegada: entrada anticipada (hotel Universal)":"Llegada a la puerta, antes de la apertura"}];
   const bfEnd=(out.find(o=>o.short==="Desayuno"||o.short==="Brunch")||{end:0}).end;
   const lunchAt=Math.max(12*60+15,bfEnd+210);
   let t=start,pos=null,pi=0,lunch=open>=13*60,snack=lunchAt>=14*60,dinner=false;
+  // Calm pace: out of the park by 20:00 and, on full Universal days from an on-site hotel, a break at the hotel after lunch.
+  const calm=S.plan.pace!=="full"&&!day.party;
+  const closeEff=calm?Math.min(close,20*60):close;
+  // Epic is a separate bus ride and they go only once: no hotel break there.
+  const restOk=calm&&uni&&!parks.includes("EPU")&&!late&&!isLastDay(k)&&(S.plan.hotel==="dock"||S.plan.hotel==="terra");
+  const doLunch=()=>{
+    out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;
+    if(restOk){out.push({type:"break",start:t,end:t+150,label:"Descanso en el hotel: bus, pileta o siesta, y vuelta al parque",short:"Descanso en el hotel"});t+=150;snack=true}
+  };
   const used=new Set();
   const manual=(!opts.ignoreOrder&&S.plan.order[k])||null;
-  const prioW=r=>pickOf(r)==="must"?4:1;
+  const seen=seenBefore(k);
+  const prioW=r=>seen.has(r.c)?.5:pickOf(r)==="must"?4:1;
   const cost=(r,at)=>{const wk=walk(pos,r.g);const w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);return {wk,w,rs,total:wk+w+r.d+(rs?r.d+6:0)}};
   // On a two-park day only keep the shows of the park they are in at that hour (switch ≈ 13:40).
   const inPark=sh=>parks.length<2?parks.includes(sh.p):sh.p===parks[sh.start<13*60+40?0:1];
@@ -667,10 +690,10 @@ function scheduleRun(k,opts,wx){
   let si=0;
   let guard=0;
   while(guard++<80){
-    if(!lunch&&t>=lunchAt){out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;continue}
+    if(!lunch&&t>=lunchAt){doLunch();continue}
     if(!snack&&day.party&&t>=18*60+15){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;snack=true;continue}
     if(!snack&&!day.party&&t>=16*60&&t<17*60+30&&close-t>90){out.push({type:"break",start:t,end:t+25,label:"Descanso y merienda"});t+=25;snack=true;continue}
-    if(!dinner&&!day.party&&t>=18*60+45&&close-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
+    if(!dinner&&!day.party&&t>=18*60+45&&closeEff-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
     const cur=parks[pi];
     const inEpa=epaOn&&t<open;
     let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||(EPA_LANDS[r.p]||[]).includes(r.l)||EPA_EXTRA.includes(r.c)));
@@ -692,7 +715,7 @@ function scheduleRun(k,opts,wx){
     }
     if(!pick){
       let best=-1;
-      for(const r of cands){const cc=cost(r,t);if(t+cc.total>close+10||t+cc.total>shCut)continue;const sc=prioW(r)*Math.pow(1+(12-Math.min(rankOf(r),12))/12,wx)*(r.w-cc.w+15)/(cc.total+5);if(sc>best){best=sc;pick=r;c=cc}}
+      for(const r of cands){const cc=cost(r,t);if(t+cc.total>closeEff+10||t+cc.total>shCut)continue;const sc=prioW(r)*Math.pow(1+(12-Math.min(rankOf(r),12))/12,wx)*(r.w-cc.w+15)/(cc.total+5);if(sc>best){best=sc;pick=r;c=cc}}
     }
     if(t+(pick?c.total:0)>shCut||(!pick&&shCut<Infinity)){
       out.push({type:"break",show:true,start:t,end:sh.start+sh.d,label:`${sh.label}, ${hm(sh.start)}. Ubicarse ${sh.lead} min antes`,short:sh.short});
@@ -704,9 +727,9 @@ function scheduleRun(k,opts,wx){
       }
       continue;
     }
-    if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&close-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
-    if(pick&&!lunch&&t>=lunchAt-45&&t+c.total>lunchAt+60){out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;continue}
-    if(!pick||t+c.total>close+10){
+    if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&closeEff-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
+    if(pick&&!lunch&&t>=lunchAt-45&&t+c.total>lunchAt+60){doLunch();continue}
+    if(!pick||t+c.total>closeEff+10){
       if(parks.length>1&&pi===0){t=Math.max(t,13*60+40);continue}
       break;
     }
@@ -716,7 +739,7 @@ function scheduleRun(k,opts,wx){
   }
   const left=pool.filter(r=>!used.has(r.c));
   const rides=out.filter(o=>o.type==="ride"&&!o.transfer);
-  return {items:out,left,open,close,epa,queue:rides.reduce((a,o)=>a+o.wait,0),count:rides.length,mustLeft:left.filter(r=>pickOf(r)==="must")};
+  return {items:out,left,open,close,epa,queue:rides.reduce((a,o)=>a+o.wait,0),count:rides.length,mustLeft:left.filter(r=>pickOf(r)==="must"&&!seen.has(r.c)),seen};
 }
 
 // ───────────────────────── persistence ─────────────────────────
@@ -787,6 +810,8 @@ function routeMatch(){
 // ── Horario
 let T0=8*60,T1=22*60+30;
 function renderHorario(){
+  const pc=S.plan.pace==="full"?"full":"calm";
+  $("#pace").innerHTML=[["calm","Ritmo tranquilo"],["full","Intenso, hasta el cierre"]].map(([v,l])=>`<button data-pace="${v}" aria-pressed="${pc===v}">${l}</button>`).join("");
   const tt=$("#tt");
   const showGhost=!S.plan.days["20"].on;
   const cols=DAYS.filter(d=>S.plan.days[d.k].on||(d.k==="20"&&showGhost));
@@ -900,7 +925,8 @@ function renderStops(){
   html+=`</tbody>`;
   $("#stops").innerHTML=html;
   const left=sc.left;
-  $("#leftover").innerHTML=left.length?`<p class="src" style="margin-top:10px"><b>No entran en el día (${left.length}):</b> ${left.map(r=>`${r.c} ${esc(r.n)}${pickOf(r)==="must"?" (imperdible)":""}`).join(" · ")}</p>`:"";
+  const notYet=left.filter(r=>!sc.seen.has(r.c)),again=left.filter(r=>sc.seen.has(r.c));
+  $("#leftover").innerHTML=(notYet.length?`<p class="src" style="margin-top:10px"><b>No entran en el viaje todavía (${notYet.length}):</b> ${notYet.map(r=>`${r.c} ${esc(r.n)}${pickOf(r)==="must"?" (imperdible)":""}`).join(" · ")}</p>`:"")+(again.length?`<p class="src" style="margin-top:4px"><b>Ya las hacen otro día:</b> ${again.map(r=>`${r.c} ${esc(r.n)} (${sc.seen.get(r.c)})`).join(" · ")}</p>`:"");
 }
 
 // ── Parques
@@ -1190,6 +1216,7 @@ document.addEventListener("click",e=>{
   const ds=t.dataset;
   if(ds.view){showView(ds.view);return}
   if(ds.day){S.day=ds.day;renderHorario();return}
+  if(ds.pace){savePlan({pace:ds.pace});return}
   if(ds.express){const k=ds.express;const d=S.plan.days[k];savePlan({days:{...S.plan.days,[k]:{...d,express:!d.express}}});return}
   if(ds.addday){const d=S.plan.days[ds.addday];savePlan({days:{...S.plan.days,[ds.addday]:{...d,on:true}}});S.day=ds.addday;return}
   if(ds.rmday){const d=S.plan.days[ds.rmday];savePlan({days:{...S.plan.days,[ds.rmday]:{...d,on:false}}});return}
