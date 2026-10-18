@@ -418,6 +418,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
       <div class="board" id="plan-board"></div>
       <div class="board" id="now-board"></div>
     </div>
+    <div class="board" id="replan-board" style="margin-top:14px"></div>
     <p class="src" style="margin-top:8px">Datos en vivo: <a href="https://themeparks.wiki" target="_blank" rel="noopener">ThemeParks.wiki</a> (API pública, sin clave). Los tiempos los publican los parques y pueden tener unos minutos de atraso.</p>
   </section>
 </div>
@@ -698,6 +699,7 @@ function bedtime(k){
 }
 const SCHED_CACHE=new Map();
 function schedule(k,opts={}){
+  if(opts.from) return scheduleBest(k,opts);
   const key=k+"|"+JSON.stringify(opts);
   if(SCHED_CACHE.has(key)) return SCHED_CACHE.get(key);
   const r=scheduleBest(k,opts);SCHED_CACHE.set(key,r);return r;
@@ -764,13 +766,21 @@ function scheduleRun(k,opts,wx){
     if(restOk){out.push({type:"break",start:t,end:t+150,label:"Descanso en el hotel: bus, pileta o siesta, y vuelta al parque",short:"Descanso en el hotel"});t+=150;snack=true}
   };
   const used=new Set();
+  // Re-plan from now (Lines-style): start at the given time and place, skip what is done, use live waits.
+  const F=opts.from;
+  if(F){out.length=0;t=F.t;pos=F.pos||null;pi=F.pi||0;lunch=lunch||t>=14*60;snack=true;dinner=t>=20*60;ctx.first=false;for(const c of F.done)used.add(c)}
   const manual=(!opts.ignoreOrder&&S.plan.order[k])||null;
   const seen=seenBefore(k);
   const prioW=r=>seen.has(r.c)?.5:pickOf(r)==="must"?4:1;
-  const cost=(r,at)=>{const wk=walk(pos,r);const w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);return {wk,w,rs,total:wk+w+r.d+(rs?r.d+6:0)}};
+  const cost=(r,at)=>{const wk=walk(pos,r);let w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);
+    if(F&&F.live[r.c]){const L=F.live[r.c],dt=at+wk-F.t;
+      if(L.down&&dt<60) return {wk,w,rs,total:Infinity};
+      // Live wait now; later, the historical curve nudged by today's live/historical ratio, fading over 2 h.
+      if(L.wait!=null){if(dt<45) w=L.wait;else{const h=waitAt(r,F.t,open,close,ctx);const ratio=Math.max(.5,Math.min(2,L.wait/Math.max(5,h)));const f=Math.max(0,1-(dt-45)/120);w=Math.round(w*(1+(ratio-1)*f)/5)*5}}}
+    return {wk,w,rs,total:wk+w+r.d+(rs?r.d+6:0)}};
   // On a two-park day only keep the shows of the park they are in at that hour (switch ≈ 13:40).
   const inPark=sh=>parks.length<2?parks.includes(sh.p):sh.p===parks[sh.start<13*60+40?0:1];
-  const shows=[...(day.party?PARTY_SHOWS:(SHOWS[k]||[])),...UNI_SHOWS].filter(inPark).sort((a,b)=>a.start-b.start);
+  const shows=[...(day.party?PARTY_SHOWS:(SHOWS[k]||[])),...UNI_SHOWS].filter(inPark).filter(sh=>!F||sh.start-5>F.t).sort((a,b)=>a.start-b.start);
   const isLast=activeDays().slice(-1)[0]?.k===k;
   // Finish an area before moving on: a small cost to change land, a big one to go back to a land already left.
   // Hubs (Celestial Park, Hollywood) are crossed anyway, so going back there is free.
@@ -806,7 +816,7 @@ function scheduleRun(k,opts,wx){
     }
     if(!pick){
       let best=-1;
-      for(const r of cands){const cc=cost(r,t);if(t+cc.total>closeEff+10||t+cc.total>shCut)continue;const sc=prioW(r)*Math.pow(1+(12-Math.min(rankOf(r),12))/12,wx)*(typW(r,ctx)-cc.w+15)/(cc.total+cc.wk+landPen(r)+5);if(sc>best){best=sc;pick=r;c=cc}}
+      for(const r of cands){const cc=cost(r,t);if(!isFinite(cc.total))continue;if(t+cc.total>closeEff+10||t+cc.total>shCut)continue;const sc=prioW(r)*Math.pow(1+(12-Math.min(rankOf(r),12))/12,wx)*(typW(r,ctx)-cc.w+15)/(cc.total+cc.wk+landPen(r)+5);if(sc>best){best=sc;pick=r;c=cc}}
     }
     if(t+(pick?c.total:0)>shCut||(!pick&&shCut<Infinity)){
       out.push({type:"break",show:true,start:t,end:sh.start+sh.d,label:`${sh.label}, ${hm(sh.start)}. Ubicarse ${sh.lead} min antes`,short:sh.short});
@@ -854,8 +864,8 @@ function setTodo(id,v){
   renderTodo();
 }
 function setDone(key,v){
-  S.done[key]={v};
-  if(db) db.doc("done/"+key).set({v}).catch(()=>{});
+  S.done[key]={v,at:Date.now()};
+  if(db) db.doc("done/"+key).set({v,at:Date.now()}).catch(()=>{});
   else LS.set("done",S.done);
   renderLive();
 }
@@ -1306,6 +1316,36 @@ function renderLive(){
     nb+=`<div class="brow"><span class="tm">${lv.wait}′</span><span class="cd">${lb(r.p)}</span><span class="nm">${esc(r.n)}<small>${r.c} · ${esc(r.l)} · ${eligLabel[elig(r,S.plan.kidCm)].toLowerCase()}</small></span><span class="pl">típica ${r.w}′</span><span class="flap" style="font-size:14px">${ratio<.5?"muy bien":ratio<.8?"bien":"normal"}</span><span></span></div>`;
   }
   $("#now-board").innerHTML=nb;
+  renderReplan();
+}
+// Florida time now, in minutes after midnight.
+function flNow(){const p=new Intl.DateTimeFormat("en-US",{timeZone:"America/New_York",hour:"numeric",minute:"numeric",hourCycle:"h23"}).formatToParts(new Date());return +p.find(x=>x.type==="hour").value*60+ +p.find(x=>x.type==="minute").value}
+let replanFrom=null,replanOut=null;
+function doReplan(){
+  const k=liveDay,day=S.plan.days[k];
+  const t=replanFrom??Math.ceil(flNow()/5)*5;
+  const doneKeys=Object.entries(S.done).filter(([key,o])=>o.v&&key.startsWith(k+"_"));
+  const done=new Set(doneKeys.map(([key])=>key.slice(k.length+1)));
+  const last=doneKeys.sort((a,b)=>(b[1].at||0)-(a[1].at||0))[0];
+  const pos=last?last[0].slice(k.length+1):null;
+  const pi=pos&&byCode[pos]&&day.parks.indexOf(byCode[pos].p)>0?1:0;
+  const live={};for(const [id,lv] of Object.entries(S.live)){const r=byId[id];if(r)live[r.c]={wait:lv.status==="OPERATING"?lv.wait:null,down:!!lv.status&&lv.status!=="OPERATING"}}
+  replanOut={t,pos,sc:schedule(k,{from:{t,pos,pi,done,live}}),live};
+  renderReplan();
+}
+function renderReplan(){
+  const el=$("#replan-board");if(!el)return;
+  const k=liveDay;
+  let h=`<div class="bh"><b>Rearmar lo que queda del día</b><span class="src">filas en vivo ahora, después la curva real de 2025</span></div>
+    <div class="filters" style="margin:8px 0"><label class="src">Desde las <input type="time" id="replan-time" value="${hm(replanFrom??Math.ceil(flNow()/5)*5).padStart(5,"0")}"></label>
+    <button class="btn sm" id="replan-go">Rearmar desde ahora</button><span class="src">Toma lo que marcaron como hecho y la última atracción como punto de partida.</span></div>`;
+  if(replanOut){
+    const its=replanOut.sc.items.filter(i=>i.start>=replanOut.t-1);
+    const downs=Object.entries(replanOut.live).filter(([c,l])=>l.down&&S.plan.days[k].parks.includes(byCode[c]?.p)&&pickOf(byCode[c])!=="no").map(([c])=>byCode[c]);
+    if(downs.length) h+=`<p class="src"><b>Cerradas ahora:</b> ${downs.map(r=>esc(r.n)).join(" · ")}. Se vuelven a probar en una hora.</p>`;
+    h+=its.map(it=>it.type==="ride"?`<div class="brow"><span class="tm">${hm(it.start+it.walk)}</span><span class="cd">${lb(it.ride.p)}</span><span class="nm">${esc(it.ride.n)}<small>${it.ride.c} · ${it.walk}′ caminando${it.rs?" · Rider Switch":""}</small></span><span class="pl">${it.wait}′ ${replanOut.live[it.ride.c]?.wait!=null&&it.start+it.walk-replanOut.t<45?"en vivo":"est."}</span></div>`:`<div class="brow"><span class="tm">${hm(it.start)}</span><span class="cd"></span><span class="nm">${esc(it.label)}</span></div>`).join("")||`<div class="empty">No queda nada que entre hasta el cierre.</div>`;
+  }
+  el.innerHTML=h;
 }
 function startLive(){
   if(liveTimer) return;
@@ -1342,6 +1382,7 @@ document.addEventListener("click",e=>{
   if(ds.hotel){savePlan({hotel:ds.hotel,epa:ds.hotel==="dock"||ds.hotel==="terra"});return}
   if(ds.liveday){liveDay=ds.liveday;renderLiveCtl();renderLive();liveCount=0;return}
   if(t.id==="live-refresh"){liveCount=0;return}
+  if(t.id==="replan-go"){const v=$("#replan-time")?.value;if(v){const [hh,mm]=v.split(":").map(Number);const nowR=Math.ceil(flNow()/5)*5;replanFrom=hh*60+mm===nowR?null:hh*60+mm}doReplan();return}
   if(ds.done){setDone(ds.done,!S.done[ds.done]?.v);return}
   if(ds.ack){S.ack[ds.ack]=true;t.classList.remove("chg");return}
 });
