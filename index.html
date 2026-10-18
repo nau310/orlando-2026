@@ -419,6 +419,7 @@ const PARKS={
   MK:{name:"Magic Kingdom",id:"75ea578a-adc8-4116-a54d-dccb60765ef9",uni:false}
 };
 const DAYS=[
+  {k:"17",dow:"Jue",label:"Jueves 17",date:"2026-12-17",crowd:6},
   {k:"18",dow:"Vie",label:"Viernes 18",date:"2026-12-18",crowd:7},
   {k:"19",dow:"Sáb",label:"Sábado 19",date:"2026-12-19",crowd:8},
   {k:"20",dow:"Dom",label:"Domingo 20",date:"2026-12-20",crowd:9},
@@ -428,6 +429,7 @@ const DAYS=[
 ];
 // Undercover Tourist crowd calendar Dec 2026 (checked 2026-10-16). rec = recommended, busy = "busy day for this park".
 const CROWD={
+  "17":{lvl:6,rec:[],busy:["USF","EPU"]},
   "18":{lvl:7,rec:["MK","IOA"],busy:[]},
   "19":{lvl:8,rec:[],busy:["IOA"]},
   "20":{lvl:9,rec:["IOA","USF"],busy:["MK"]},
@@ -437,7 +439,7 @@ const CROWD={
   "24":{lvl:9,rec:["MK"],busy:["USF","EPU"]}
 };
 // Magic Kingdom hours (ThemeParks.wiki schedule, checked 2026-10-16). Universal: not published, estimate.
-const MK_HOURS={"18":[540,1080],"19":[540,1320],"20":[540,1080],"21":[540,1320],"22":[540,1080],"23":[540,1320]};
+const MK_HOURS={"17":[540,1080],"18":[540,1080],"19":[540,1320],"20":[540,1080],"21":[540,1320],"22":[540,1080],"23":[540,1320]};
 // Universal estimate: opening per late-November published hours (Epic 10:00, Islands/Studios 9:00), closing 21:00 for Christmas week.
 const UNI_EST={EPU:[600,1260],IOA:[540,1260],USF:[540,1260]};
 // Shows de Magic Kingdom (2026 sin publicar: se usa el patrón de 2025). La última fiesta de Navidad es el 22,
@@ -465,7 +467,7 @@ const LODGE={
   terra:{bf:"Desayuno en el patio de comidas del hotel (pago)",bfMin:35,uni:{how:"Bus del hotel: 20′ + 10′ a la puerta",t:30,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
   allstar:{bf:"Desayuno en el patio de comidas del hotel (pago)",bfMin:35,uni:{how:"Salir en auto: 25′ + 20′ del garage a la puerta",t:45,m:15},mk:{how:"Bus de Disney: 25′ hasta la puerta",t:25,m:10}}
 };
-const PARTY={"18":true,"20":true,"22":true};
+const PARTY={"17":true,"18":true,"20":true,"22":true};
 // Early Park Admission lands (Universal hotel guests). Epic list per Undercover Tourist (through Nov 30; Dec not yet published).
 const EPA_LANDS={EPU:["Ministerio de Magia","Super Nintendo World","Isle of Berk","Celestial Park"],IOA:["Hogsmeade"],USF:["Diagon Alley"]};
 const EPA_EXTRA=["IOA-05"];
@@ -474,6 +476,7 @@ const ROUTES={
   B:{name:"B",title:"4 días, del 20 al 23",days:{"20":["IOA"],"21":["USF"],"22":["EPU"],"23":["MK"]}},
   C:{name:"C",title:"3 días antes, del 18 al 20",days:{"18":["IOA","USF"],"19":["MK"],"20":["EPU"]}},
   D:{name:"D",title:"3 días desde el sábado, del 19 al 21",days:{"19":["MK"],"20":["IOA","USF"],"21":["EPU"]}},
+  G:{name:"G",title:"Reservado: del 17 al 22, fiesta de Navidad + 5 días de Universal en Dockside",party:"17",hotel:"dock",epa:true,days:{"17":["MK"],"18":["IOA"],"19":["EPU"],"20":["USF"],"21":["IOA","USF"],"22":["EPU"]}},
   F:{name:"F",title:"Desde el viernes 18, con la fiesta de Navidad de Magic Kingdom",party:"18",days:{"18":["MK"],"19":["EPU"],"20":["IOA"],"21":["USF"]}},
   E:{name:"E",title:"Solo 2 parques de Universal, sin Epic, del 21 al 23",days:{"21":["IOA"],"22":["USF"],"23":["MK"]}}
 };
@@ -484,11 +487,11 @@ const byId=Object.fromEntries(RIDES.map(r=>[r.id,r]));
 
 // ───────────────────────── state ─────────────────────────
 const defaultPlan=()=>({
-  route:"A",
-  days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.A.days[d.k],parks:ROUTES.A.days[d.k]||["IOA"],hours:null,express:false}])),
-  kidCm:120, epa:false,
+  route:"G",
+  days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.G.days[d.k],parks:ROUTES.G.days[d.k]||["IOA"],hours:null,express:false,party:ROUTES.G.party===d.k}])),
+  kidCm:120, epa:true,
   fam:{fl:{a:4,k:0},ot:{a:3,k:1}},
-  order:{}, xprice:{uni:null,ll:null}, hotel:"airbnb"
+  order:{}, xprice:{uni:null,ll:null}, hotel:"dock"
 });
 const normPlan=p=>{const d=defaultPlan();return {...d,...p,days:{...d.days,...(p&&p.days)}}};
 const S={plan:defaultPlan(),picks:{},todo:{},done:{},view:"horario",day:"21",sel:null,filters:{park:"all",hp:false,nin:false,kid:false,xmas:false},live:{},liveOk:null,ack:{}};
@@ -567,7 +570,7 @@ function dayHours(k){
 function morning(k,gate,uni){
   const L=LODGE[S.plan.hotel]||LODGE.airbnb;
   const ad=activeDays();
-  if(ad[0]?.k===k) return [{type:"morning",start:gate-25,end:gate,short:"Desde casa: estacionar",label:gate>=12*60?"Llegan desde casa: estacionar y caminar a la puerta":"Llegan desde casa: desayuno en la ruta, estacionar y caminar a la puerta"}];
+  if(ad[0]?.k===k) return [{type:"morning",start:gate-25,end:gate,short:"Desde casa: estacionar",label:gate>=12*60?"Llegan, dejan las valijas en el hotel y van a Magic Kingdom: estacionar y caminar a la puerta":"Llegan desde casa: desayuno en la ruta, estacionar y caminar a la puerta"}];
   const tr=uni?L.uni:L.mk;
   const last=ad.at(-1)?.k===k;
   const leave=gate-tr.t-tr.m, bfEnd=leave-5, bfStart=bfEnd-L.bfMin, wake=bfStart-30;
@@ -870,8 +873,8 @@ function renderStops(){
 
 // ── Parques
 function renderParques(){
-  const cols=["18","19","20","21","22","23","24"];
-  const dows={"18":"Vie","19":"Sáb","20":"Dom","21":"Lun","22":"Mar","23":"Mié","24":"Jue"};
+  const cols=["17","18","19","20","21","22","23","24"];
+  const dows={"17":"Jue","18":"Vie","19":"Sáb","20":"Dom","21":"Lun","22":"Mar","23":"Mié","24":"Jue"};
   const trip=new Set(activeDays().map(d=>d.k));
   let h=`<thead><tr><th class="pk">Parque</th>${cols.map(c=>`<th class="${trip.has(c)?"trip":""}">${dows[c]} ${c}<span class="lvl">${CROWD[c].lvl}</span></th>`).join("")}</tr></thead><tbody>`;
   for(const p of ["EPU","IOA","USF","MK"]){
@@ -889,6 +892,7 @@ function renderParques(){
   const why={
     A:{"21":"Nintendo y Ministerio de Magia. Epic está lleno los tres días; el lunes llegan directo del auto.","22":"Hogsmeade a la mañana, Hogwarts Express y Diagon Alley a la tarde. Universal Studios recomendado ese día.","23":"Recomendado ese día y abierto hasta las 22:00. El martes cierra a las 18:00 por la fiesta."},
     C:{"18":"Islands recomendado el viernes y día de multitud 7. Hogsmeade a la mañana, Hogwarts Express y Diagon Alley a la tarde.","19":"Abierto hasta las 22:00 con Happily Ever After. El show y el desfile de Navidad todavía son solo para la fiesta.","20":"Epic no aparece lleno el domingo (sí del 21 al 23). Nintendo y Ministerio de Magia."},
+    G:{"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Multitud 6.","18":"Islands recomendado el viernes, con entrada anticipada: Hagrid's, VelociCoaster y el castillo navideño de noche.","19":"Epic sin marca de lleno el sábado, con entrada anticipada: Nintendo y Ministerio de Magia.","20":"Studios recomendado el domingo: Gringotts, Simpsons, Mummy y el desfile de Macy's.","21":"Park-to-Park: Hogwarts Express y repetir lo que más les gustó en Islands y Studios.","22":"Check-out. Segundo día de Epic para lo que faltó (entrada anticipada). Sugerencia: se puede cambiar."},
     F:{"18":"Fiesta de Navidad de Mickey: llegan desde casa a las 16:00 y se quedan hasta medianoche. Desfile y fuegos de Navidad, filas cortas (entradas limitadas).","19":"Epic no aparece lleno el sábado. Nintendo y Ministerio de Magia.","20":"Islands recomendado el domingo. VelociCoaster y el castillo navideño a la noche.","21":"Universal Studios recomendado el lunes. Desfile de Macy's y después vuelta a casa."},
     E:{"21":"Islands entero: Hagrid's, VelociCoaster, Forbidden Journey, Kong y el castillo navideño a la noche.","22":"Studios entero: Gringotts, Mummy, Simpsons, Diagon Alley con calma y el desfile de Navidad. Hogwarts Express ida y vuelta.","23":"Recomendado ese día, con desfile y fuegos de Navidad."},
     D:{"19":"Abierto hasta las 22:00 con Happily Ever After. Multitud 8 y sin marca de lleno.","20":"Islands y Universal Studios recomendados el domingo: Hogsmeade, Hogwarts Express y Diagon Alley.","21":"Epic aparece lleno, pero es el último día: se puede cortar temprano y salir a la ruta."},
@@ -901,7 +905,7 @@ function renderParques(){
     return `<article class="route${cur===r.name?" cur":""}">
       <header><b>Ruta ${r.name}</b><span>${r.title}</span></header>
       <ol>${days.map(([k,ps])=>{const d=DAYS.find(x=>x.k===k);return `<li class="${ps[0]}"><span class="d">${d.dow} ${k}</span><span class="s"></span><span class="p"><span>${ps.map(lb).join(" ")} ${ps.map(p=>PARKS[p].name).join(" → ")}</span><span class="why">${esc(why[r.name][k])}</span></span></li>`}).join("")}</ol>
-      <div class="foot"><span>${{A:"Entradas Universal Park-to-Park (el día 22 usa dos parques). Sobra un día de la entrada de 3.",B:"Usa los 3 días de Universal, un parque por día. Suma una noche de alojamiento (≈ US$ 300).",C:`Multitud 7, 8 y 9 (contra 9, 9, 9). Entradas ${usd(fareCalc("C").total)} con impuestos. Hay que cambiar la reserva a viernes y sábado, y Magic Kingdom queda sin show de Navidad.`,F:`Multitud 7, 8, 9 y 9. Todos los shows de Navidad de los dos lados y un parque por día. Fiesta US$ 229 por persona (US$ 219 de 3 a 9 años), quedan pocas. Entradas ${usd(fareCalc("F").total)} con impuestos. 3 noches: viernes, sábado y domingo.`,E:`Sin Epic: se pierden Nintendo y el Ministerio de Magia. No ahorra en entradas: la de 3 días con Epic cuesta menos que la de 2 parques. Entradas ${usd(fareCalc("E").total)} con impuestos.`,D:`Sin faltar a clases. Multitud 8, 9 y 9. Entradas ${usd(fareCalc("D").total)} con impuestos. Reserva sábado y domingo; Magic Kingdom sin show de Navidad.`}[r.name]}</span>
+      <div class="foot"><span>${{A:"Entradas Universal Park-to-Park (el día 22 usa dos parques). Sobra un día de la entrada de 3.",B:"Usa los 3 días de Universal, un parque por día. Suma una noche de alojamiento (≈ US$ 300).",C:`Multitud 7, 8 y 9 (contra 9, 9, 9). Entradas ${usd(fareCalc("C").total)} con impuestos. Hay que cambiar la reserva a viernes y sábado, y Magic Kingdom queda sin show de Navidad.`,G:`Lo que están reservando: fiesta del jueves 17 y paquete de Universal Vacations (Dockside 17 al 22, 3 días Park-to-Park + 2 gratis, entrada anticipada). Total ${usd(fareCalc("G").total)}.`,F:`Multitud 7, 8, 9 y 9. Todos los shows de Navidad de los dos lados y un parque por día. Fiesta US$ 229 por persona (US$ 219 de 3 a 9 años), quedan pocas. Entradas ${usd(fareCalc("F").total)} con impuestos. 3 noches: viernes, sábado y domingo.`,E:`Sin Epic: se pierden Nintendo y el Ministerio de Magia. No ahorra en entradas: la de 3 días con Epic cuesta menos que la de 2 parques. Entradas ${usd(fareCalc("E").total)} con impuestos.`,D:`Sin faltar a clases. Multitud 8, 9 y 9. Entradas ${usd(fareCalc("D").total)} con impuestos. Reserva sábado y domingo; Magic Kingdom sin show de Navidad.`}[r.name]}</span>
       ${cur===r.name?'<span class="mark rec">'+g("check")+"Ruta actual</span>":`<button class="btn" data-route="${r.name}">Usar ruta ${r.name}</button>`}</div>
     </article>`}).join("");
   const fa=fareCalc("A"),fb=fareCalc("B");
@@ -977,7 +981,8 @@ const FARES={
   U2:{n:"Universal residente FL · 3 días Park-to-Park",who:"fl",per:285,pp:true,v:"3p",note:"2 días Park-to-Park (Studios + Islands, con Hogwarts Express) y 1 día de Epic. Mismas fechas que la anterior.",src:"Touring Plans y SES, 16 oct 2026. Confirmar en universalorlando.com."},
   U3:{n:"Universal Special · 3 días, 3 parques",who:"all",per:297,pp:false,v:"ver",note:"Un día por parque, dentro de 7 días seguidos. Bloqueado del 24 dic al 3 ene: del 18 al 23 está bien.",src:"universalorlando.com, 16 oct 2026."},
   U4:{n:"Universal Special · 3 días Park-to-Park",who:"all",per:357,pp:true,v:"ver",note:"Como la anterior, con Park-to-Park entre Studios e Islands.",src:"universalorlando.com, 16 oct 2026."},
-  D2:{n:"Fiesta de Navidad de Mickey · viernes 18 (16:00 a 24:00)",who:"all",per:229,pp:false,v:"ver",note:"Reemplaza la entrada de día de Magic Kingdom. US$ 229 de 10 años en adelante y US$ 219 de 3 a 9. Desfile, fuegos y show de Navidad, filas cortas. No reembolsable; quedan pocas.",src:"disneyworld.disney.go.com, calendario de compra, 17 oct 2026."},
+  P1:{n:"Paquete Universal Vacations: Dockside del 17 al 22 (5 noches) + 3 días Park-to-Park + 2 días gratis",who:"ot",per:2783.15/4,pp:true,v:"ver",taxIncl:true,note:"Cotización con impuestos: US$ 2.783,15 para 3 de 10 años o más y 1 de 3 a 9 (US$ 695,79 por persona). Entradas ≈ US$ 2.160 (US$ 567,64 adulto, US$ 556,99 niño, US$ 100 de descuento por Park-to-Park); hotel ≈ US$ 623 las 5 noches con 25% de promoción. Incluye entrada anticipada.",src:"Cotización en VacationAccess (agencia), 17 oct 2026. Sin confirmar la compra."},
+  D2:{n:"Fiesta de Navidad de Mickey (16:00 a 24:00)",who:"all",per:229,pp:false,v:"ver",note:"Reemplaza la entrada de día de Magic Kingdom. US$ 229 de 10 años en adelante y US$ 219 de 3 a 9, + 6,5% de impuesto. Familia de Florida, jueves 17: 4 entradas en el carrito, US$ 975,56 con impuesto. No reembolsable; el 20 y el 22 están agotados.",src:"disneyworld.disney.go.com, calendario de compra, 17 oct 2026."},
   D1:{n:"Magic Kingdom · 1 día con fecha",who:"all",per:209,pp:false,v:"ver",note:"Precio por fecha (10 años o más): vie 18 US$ 199; sáb 19 US$ 209; dom 20 y lun 21 US$ 204; mar 22 y mié 23 US$ 209. El 18, 20 y 22 cierra a las 18 por la fiesta de Navidad.",src:"Calendario de entradas de disneyworld.disney.go.com, 16 oct 2026."}
 };
 function fareCalc(rn){
@@ -993,13 +998,22 @@ function fareCalc(rn){
   const fam=S.plan.fam;
   const nfl=fam.fl.a+fam.fl.k, not=fam.ot.a+fam.ot.k;
   const lines=[];
+  const ad10=fam.fl.a+fam.ot.a,k39=fam.fl.k+fam.ot.k;
+  if((rn||routeMatch())==="G"){
+    // What the families are actually booking: the other family's package already includes tax and the hotel.
+    lines.push({f:"P1",qty:not,fam:"Otra familia (incluye hotel)"});
+    lines.push({f:"U2",qty:nfl,fam:"Familia de Florida (eligen 3 de los 5 días)"});
+    lines.push({f:"D2",qty:nfl+not,fam:"Las dos familias, jueves 17",per:(229*ad10+219*k39)/Math.max(1,ad10+k39)});
+    const sub=lines.reduce((a,l)=>a+(l.per??FARES[l.f].per)*l.qty,0);
+    const tax=lines.filter(l=>!FARES[l.f].taxIncl).reduce((a,l)=>a+(l.per??FARES[l.f].per)*l.qty*.065,0);
+    return {lines,sub,tax,total:sub+tax,needPP:true,uniDays,mk};
+  }
   if(uniDays){
     if(flOk) lines.push({f:needPP?"U2":"U1",qty:nfl,fam:"Familia de Florida"});
     else lines.push({f:needPP?"U4":"U3",qty:nfl,fam:"Familia de Florida (sin tarifa de residente: Universal empieza después del 21)"});
     lines.push({f:needPP?"U4":"U3",qty:not,fam:"Otra familia"});
   }
   const party=rn?ROUTES[rn].party===mkKey:!!S.plan.days[mkKey]?.party;
-  const ad10=fam.fl.a+fam.ot.a,k39=fam.fl.k+fam.ot.k;
   if(mk) lines.push(party?{f:"D2",qty:nfl+not,fam:"Las dos familias",per:(229*ad10+219*k39)/Math.max(1,ad10+k39)}:{f:"D1",qty:nfl+not,fam:"Las dos familias",per:MK_PRICE[mkKey]||FARES.D1.per});
   const sub=lines.reduce((a,l)=>a+(l.per??FARES[l.f].per)*l.qty,0);
   return {lines,sub,tax:sub*.065,total:sub*1.065,needPP,uniDays,mk};
@@ -1059,16 +1073,14 @@ function renderExpress(){
    ${(xp.uni||xp.ll)?`<p class="total" style="display:block"><span class="src">Costo para 8 personas:</span> ${xp.uni?`Express ${usd(xp.uni*8)} por día`:""}${xp.uni&&xp.ll?" · ":""}${xp.ll?`Lightning Lane ${usd(xp.ll*8)}`:""}</p>`:""}`;
 }
 const TODO=[
-  ["t1","Comprar Universal residente FL para la familia de Florida","Solo online. Cada adulto necesita licencia o ID de Florida. Primer uso antes del 21 dic inclusive."],
-  ["t10","Antes de comprar Magic Kingdom, mirar si Disney sacó una oferta nueva","Hoy la entrada de 1 día no tiene descuento de residente ni promo. Página: disneyworld.disney.go.com/destinations/florida-residents-tickets-passes"],
-  ["t2","Comprar Universal para la otra familia","Comparar universalorlando.com con Undercover Tourist (US$ 10 menos con hotel de 2+ noches)."],
-  ["t3","Comprar Magic Kingdom de 1 día para el miércoles 23","Entrada con fecha; el precio sube cerca de Navidad."],
-  ["t4","Decidir si cambian la reserva actual por un hotel de Universal","Solo si se cancela sin costo: Dockside suma 1 h de entrada anticipada."],
-  ["t9","Preguntarle a la anfitriona si puede incluir el desayuno","Buffet del Holiday Inn desde las 6:00. Confirmar precio y desde qué edad se paga como adulto."],
+  ["t11","Comprar la fiesta de Navidad del jueves 17 para las dos familias","Familia de Florida: 4 × US$ 229 (US$ 975,56 con impuesto, ya en el carrito). Otra familia: 3 × US$ 229 + 1 × US$ 219 (el de 6). No reembolsable; el 20 y el 22 ya se agotaron."],
+  ["t12","Cerrar el paquete de Dockside de la otra familia","Cotización del 17 oct: del 17 al 22, US$ 2.783,15 con impuestos. Confirmar que siga la promo de 25% del hotel y que la entrada anticipada aplique los 5 días."],
+  ["t1","Comprar Universal residente FL para la familia de Florida","3 días Park-to-Park (US$ 285 + impuesto). Elegir 3 de los 5 días de la otra familia; primer uso hasta el 21 inclusive. Solo online, con ID de Florida."],
+  ["t13","Definir dónde duerme la familia de Florida del 17 al 22","¿Otra habitación en Dockside o vuelven a casa? Sin hotel de Universal no tienen entrada anticipada. El descuento de residente no aplica en Dockside (sí en Terra Luna y Surfside, de domingo a jueves)."],
+  ["t14","Cancelar el Airbnb si ya no lo usan","Se puede cancelar sin costo. Hacerlo recién cuando el otro alojamiento esté confirmado."],
   ["t5","Medir al de 6 años con zapatillas","Si llega a 122 cm sube a Hagrid's, Forbidden Journey, TRON y Stardust Racers."],
-  ["t6","Instalar las apps: Universal Orlando y My Disney Experience","Filas virtuales, Express y Lightning Lane se manejan desde ahí."],
-  ["t7","Lightning Lane: reservar el 20 dic a las 7:00 (hora de Florida)","Sin hotel de Disney, se abre 3 días antes de la entrada. Verificar la regla en la app."],
-  ["t8","Cargar el horario real de Universal cuando lo publiquen","Hoy figura estimado 9:00 a 21:00."]
+  ["t6","Instalar las apps: Universal Orlando y My Disney Experience","Horarios de shows, filas virtuales y Express se manejan desde ahí."],
+  ["t8","Cargar el horario real de Universal y de los shows cuando lo publiquen","Hoy los horarios de diciembre son estimados."]
 ];
 function renderTodo(){
   $("#todo").innerHTML=TODO.map(([id,t,s])=>{const v=!!S.todo[id]?.v;return `<label class="check${v?" done":""}" for="${id}"><input type="checkbox" id="${id}" data-todo="${id}" ${v?"checked":""}><span><span class="t">${esc(t)}</span><span class="s">${esc(s)}</span></span></label>`}).join("");
@@ -1149,7 +1161,7 @@ document.addEventListener("click",e=>{
   if(ds.express){const k=ds.express;const d=S.plan.days[k];savePlan({days:{...S.plan.days,[k]:{...d,express:!d.express}}});return}
   if(ds.addday){const d=S.plan.days[ds.addday];savePlan({days:{...S.plan.days,[ds.addday]:{...d,on:true}}});S.day=ds.addday;return}
   if(ds.rmday){const d=S.plan.days[ds.rmday];savePlan({days:{...S.plan.days,[ds.rmday]:{...d,on:false}}});return}
-  if(ds.route){const r=ROUTES[ds.route];const days={};for(const d of DAYS){days[d.k]={...S.plan.days[d.k],on:!!r.days[d.k],parks:r.days[d.k]||S.plan.days[d.k].parks,party:r.party===d.k}}savePlan({days,route:ds.route,order:{}});return}
+  if(ds.route){const r=ROUTES[ds.route];const days={};for(const d of DAYS){days[d.k]={...S.plan.days[d.k],on:!!r.days[d.k],parks:r.days[d.k]||S.plan.days[d.k].parks,party:r.party===d.k}}savePlan({days,route:ds.route,order:{},...(r.hotel?{hotel:r.hotel,epa:!!r.epa}:{})});return}
   if(ds.stop||ds.stoprow){const [k,c]=(ds.stop||ds.stoprow).split("|");S.day=k;S.sel=k+c;renderHorario();if(ds.stop){const row=document.querySelector(`[data-stoprow="${k}|${c}"]`);row&&row.scrollIntoView({block:"center",behavior:"smooth"})}return}
   if(ds.mv){const [k,c,dir]=ds.mv.split("|");const sc=schedule(k);const seq=sc.items.filter(i=>i.type==="ride"&&!i.transfer).map(i=>i.ride.c);const i=seq.indexOf(c),j=i+Number(dir);if(j<0||j>=seq.length)return;[seq[i],seq[j]]=[seq[j],seq[i]];S.sel=k+c;savePlan({order:{...S.plan.order,[k]:seq}});return}
   if(ds.skip){setPick(ds.skip,"no");return}
