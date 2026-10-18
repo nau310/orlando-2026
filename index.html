@@ -374,7 +374,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
   <!-- ═══ 4 ENTRADAS ═══ -->
   <section class="view" id="v-entradas" role="tabpanel" aria-labelledby="tab-entradas" hidden>
     <h2>Entradas y alojamiento</h2>
-    <p class="lede">Lo que están comprando para el plan del 17 al 22. La familia de Florida puede comprar las promociones de residente. Cada adulto muestra un documento de Florida al comprar, retirar y entrar, así que no puede comprarlas para la otra familia. En Disney el descuento de residente solo existe para entradas de 3 o 4 días (30 y 40% menos); la de 1 día para Magic Kingdom no tiene descuento (sitio de Disney, 16 oct 2026).</p>
+    <p class="lede">Lo que están comprando para el plan del 17 al 22: un paquete de Universal por familia (hotel + 5 días de parque) y la fiesta de Navidad. Si la familia de Florida usara la entrada de residente tendría solo 3 días: el paquete conviene. La familia de Florida puede comprar las promociones de residente. Cada adulto muestra un documento de Florida al comprar, retirar y entrar, así que no puede comprarlas para la otra familia. En Disney el descuento de residente solo existe para entradas de 3 o 4 días (30 y 40% menos); la de 1 día para Magic Kingdom no tiene descuento (sitio de Disney, 16 oct 2026).</p>
     <div class="cols2">
       <div>
         <h3 style="margin-top:0">Quiénes van</h3>
@@ -1152,7 +1152,7 @@ function renderCatalog(){
 // ── Entradas
 const FARES={
   P1:{n:"Paquete Universal Vacations: Dockside del 17 al 22 (5 noches) + 3 días Park-to-Park + 2 días gratis",per:2783.15/4,taxIncl:true,note:"Cotización con impuestos: US$ 2.783,15 para 3 de 10 años o más y 1 de 3 a 9 (US$ 695,79 por persona). Entradas ≈ US$ 2.160 (US$ 567,64 adulto, US$ 556,99 niño, US$ 100 de descuento por Park-to-Park); hotel ≈ US$ 623 las 5 noches con 25% de promoción. Incluye entrada anticipada.",src:"Cotización en VacationAccess (agencia), 17 oct 2026. Sin confirmar la compra."},
-  U2:{n:"Universal residente FL · 3 días Park-to-Park",per:285,note:"2 días Park-to-Park entre Studios e Islands (con Hogwarts Express) más 1 día de Epic. Vence el 23 dic; días no consecutivos; bloqueos aplican. Cada adulto muestra ID de Florida. Que el primer uso sea hasta el 21 lo dice Disney Tourist Blog, no la página oficial.",src:"universalorlando.com, oferta para residentes de Florida, verificado 18 oct 2026."},
+  P2:{n:"Paquete Universal Vacations: Dockside del 17 al 22 (5 noches) + 3 días Park-to-Park + 2 días gratis",per:2793.80/4,taxIncl:true,note:"Cotización con impuestos: US$ 2.793,80 para 4 de 10 años o más (US$ 698,45 por persona). Mismo hotel y entradas que la otra familia; cuesta US$ 10,65 más porque los 4 pagan entrada de adulto (US$ 567,64). Incluye entrada anticipada.",src:"Cotización en VacationAccess (agencia), 18 oct 2026. Sin confirmar la compra."},
   D2:{n:"Fiesta de Navidad de Mickey, jueves 17 (16:00 a 24:00)",per:229,note:"US$ 229 de 10 años en adelante y US$ 219 de 3 a 9, + 6,5% de impuesto. Familia de Florida: 4 entradas en el carrito, US$ 975,56 con impuesto. No reembolsable; el 20 y el 22 están agotados.",src:"disneyworld.disney.go.com, calendario de compra, 17 oct 2026."}
 };
 // What the families are buying: the other family's package already includes tax and the hotel.
@@ -1160,7 +1160,7 @@ function fareCalc(){
   const fam=S.plan.fam,nfl=fam.fl.a+fam.fl.k,not=fam.ot.a+fam.ot.k,ad10=fam.fl.a+fam.ot.a,k39=fam.fl.k+fam.ot.k;
   const lines=[
     {f:"P1",qty:not,fam:"Otra familia (incluye hotel)"},
-    {f:"U2",qty:nfl,fam:"Familia de Florida (eligen 3 de los 5 días)"},
+    {f:"P2",qty:nfl,fam:"Familia de Florida (incluye hotel)"},
     {f:"D2",qty:nfl+not,fam:"Las dos familias",per:(229*ad10+219*k39)/Math.max(1,ad10+k39)}
   ];
   const amt=l=>(l.per??FARES[l.f].per)*l.qty;
@@ -1178,13 +1178,13 @@ function renderEntradas(){
   for(const l of fc.lines){const F=FARES[l.f];
     h+=`<tr><td><span class="nm">${esc(F.n)}</span> <span class="ver">precio verificado</span><span class="sub">${esc(F.note)}</span><span class="sub">Fuente: ${esc(F.src)}</span></td><td>${esc(l.fam)}<span class="sub">${l.qty} personas</span></td><td class="num pr">${usd(l.per??F.per)}</td><td class="num pr">${usd((l.per??F.per)*l.qty)}</td></tr>`}
   $("#fares").innerHTML=h+"</tbody>";
-  $("#fare-total").innerHTML=`<div class="total"><span>Subtotal ${usd(fc.sub)} + impuestos ${usd(fc.tax)} (6,5%; el paquete ya los incluye)</span><b>${usd(fc.total)}</b></div>
+  $("#fare-total").innerHTML=`<div class="total"><span>Subtotal ${usd(fc.sub)} + impuesto de la fiesta ${usd(fc.tax)} (6,5%; los paquetes ya lo incluyen)</span><b>${usd(fc.total)}</b></div>
    <p class="src">Park-to-Park hace falta para el Hogwarts Express entre Islands y Studios.</p>`;
   renderExpress();
   // lodging: the other family is at Dockside with the package; the Florida family is still open
   $("#hotels").innerHTML=`<thead><tr><th>Quién</th><th>Dónde</th><th>Notas</th></tr></thead><tbody>
-    <tr><td><span class="nm">Otra familia</span></td><td><span class="nm">Universal Endless Summer Dockside</span><span class="sub">17 al 22 dic, en el paquete</span></td><td><span class="sub" style="margin:0">Entrada anticipada en Islands y Epic. Bus a los parques cada ≈ 15 min. Estacionamiento US$ 26 por noche; desayuno aparte en Pier 8. <a href="https://www.universalorlando.com/web/en/us/places-to-stay/universal-endless-summer-resort-dockside-inn-and-suites" target="_blank" rel="noopener">Sitio ${g("out")}</a></span></td></tr>
-    <tr><td><span class="nm">Familia de Florida</span></td><td><span class="nm">A definir</span></td><td><span class="sub" style="margin:0">Otra habitación en Dockside para tener la entrada anticipada, o Terra Luna con descuento de residente (hasta 35% las noches de domingo a jueves: 17, 20 y 21). <a href="https://www.universalorlando.com/web/en/us/places-to-stay/universal-terra-luna-resort" target="_blank" rel="noopener">Terra Luna ${g("out")}</a></span></td></tr></tbody>`;
+    <tr><td><span class="nm">Otra familia</span></td><td><span class="nm">Universal Endless Summer Dockside</span><span class="sub">17 al 22 dic, en su paquete</span></td><td><span class="sub" style="margin:0">Entrada anticipada en Islands y Epic. Bus a los parques cada ≈ 15 min. Estacionamiento US$ 26 por noche; desayuno aparte en Pier 8. <a href="https://www.universalorlando.com/web/en/us/places-to-stay/universal-endless-summer-resort-dockside-inn-and-suites" target="_blank" rel="noopener">Sitio ${g("out")}</a></span></td></tr>
+    <tr><td><span class="nm">Familia de Florida</span></td><td><span class="nm">Universal Endless Summer Dockside</span><span class="sub">17 al 22 dic, en su paquete</span></td><td><span class="sub" style="margin:0">Misma habitación tipo y mismas condiciones. Pidan a la agencia que las dos habitaciones queden cerca.</span></td></tr></tbody>`;
   $("#hotel-note").innerHTML="";
 }
 function renderExpress(){
@@ -1209,10 +1209,9 @@ function renderExpress(){
 }
 const TODO=[
   ["t11","Comprar la fiesta de Navidad del jueves 17 para las dos familias","Familia de Florida: 4 × US$ 229 (US$ 975,56 con impuesto, ya en el carrito). Otra familia: 3 × US$ 229 + 1 × US$ 219 (la de 6). No reembolsable; el 20 y el 22 ya se agotaron."],
-  ["t12","Cerrar el paquete de Dockside de la otra familia","Cotización del 17 oct: del 17 al 22, US$ 2.783,15 con impuestos. Confirmar que siga la promo de 25% del hotel y que la entrada anticipada aplique los 5 días."],
-  ["t1","Comprar Universal residente FL para la familia de Florida","3 días Park-to-Park (US$ 285 + impuesto). Elegir 3 de los 5 días de la otra familia; primer uso hasta el 21 inclusive. Solo online, con ID de Florida."],
-  ["t13","Definir dónde duerme la familia de Florida del 17 al 22","¿Otra habitación en Dockside o vuelven a casa? Sin hotel de Universal no tienen entrada anticipada. El descuento de residente no aplica en Dockside (sí en Terra Luna y Surfside, de domingo a jueves)."],
-  ["t14","Cancelar el Airbnb si ya no lo usan","Se puede cancelar sin costo. Hacerlo recién cuando el otro alojamiento esté confirmado."],
+  ["t12","Cerrar los dos paquetes de Dockside","Cotizaciones: otra familia US$ 2.783,15 y familia de Florida US$ 2.793,80, del 17 al 22, con impuestos. Pedir habitaciones cerca y confirmar que siga la promo de 25%."],
+  ["t15","Preguntar a la agencia cuántos días de Epic trae la entrada","«3-Day Park-to-Park + 2 Days Free»: ¿Epic entra en el Park-to-Park? ¿Se puede ir a Epic dos días? Define si el martes 22 puede ser Epic."],
+  ["t14","Cancelar el Airbnb","Se puede cancelar sin costo. Hacerlo cuando los paquetes estén confirmados."],
   ["t5","Medir a la de 6 años con zapatillas","Si llega a 122 cm sube a Hagrid's, Forbidden Journey, TRON y Stardust Racers."],
   ["t6","Instalar las apps: Universal Orlando y My Disney Experience","Horarios de shows, filas virtuales y Express se manejan desde ahí."],
   ["t8","Cargar el horario real de Universal y de los shows cuando lo publiquen","Hoy los horarios de diciembre son estimados."]
