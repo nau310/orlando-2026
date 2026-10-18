@@ -305,6 +305,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <div class="seg" id="pace" role="group" aria-label="Ritmo"></div>
+        <div class="seg" id="meals" role="group" aria-label="Comidas"></div>
         <button class="btn quiet" id="reopt">Reoptimizar todos los días</button>
       </div>
     </div>
@@ -315,7 +316,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
       <span><i class="lg-q"></i>Fila (espera estimada)</span>
       <span><i class="lg-r"></i>Atracción</span>
       <span><svg class="g"><use href="#g-height"/></svg>Altura mínima</span>
-      <span><svg class="g"><use href="#g-swap"/></svg>Rider Switch: un adulto espera con el de 6</span>
+      <span><svg class="g"><use href="#g-swap"/></svg>Rider Switch: un adulto espera con la de 6</span>
       <span><svg class="g"><use href="#g-bolt"/></svg>Con Express / Lightning Lane</span>
       <span><svg class="g"><use href="#g-roof"/></svg>Bajo techo</span>
       <span><svg class="g"><use href="#g-drop"/></svg>Te mojás</span>
@@ -360,7 +361,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
     <h2>Atracciones</h2>
     <p class="lede">Marquen entre las dos familias qué es imperdible, qué hacen si da el tiempo y qué no. El horario se arma con esto. Lo que tiene borde punteado es una sugerencia del planificador que nadie confirmó todavía. La columna <b>#</b> es el ranking sugerido dentro de cada parque, armado con reseñas y puntajes de Touring Plans pensando en chicos de 12 y 13 y uno de 6. Las primeras de cada parque (6 en Universal, 8 en Magic Kingdom) quedan como imperdibles; el resto en «si da». Harry Potter y Nintendo no suben por la temática.</p>
     <div class="height">
-      <label for="kid">Altura del de 6 años</label>
+      <label for="kid">Altura de la de 6 años</label>
       <input type="range" id="kid" min="100" max="135" step="1">
       <b id="kid-out">120 cm</b>
       <span class="src" style="max-width:52ch">48 pulgadas son 121,9 cm. Universal y Disney miden en la entrada de cada atracción, con zapatillas puestas. Si está a 2 cm o menos del mínimo, queda marcado <span class="elig edge">al límite</span>.</span>
@@ -490,7 +491,7 @@ const byId=Object.fromEntries(RIDES.map(r=>[r.id,r]));
 const defaultPlan=()=>({
   route:"G",
   days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.G.days[d.k],parks:ROUTES.G.days[d.k]||["IOA"],hours:null,express:false,party:ROUTES.G.party===d.k}])),
-  kidCm:120, epa:true, pace:"calm",
+  kidCm:120, epa:true, pace:"calm", meals:"quick",
   fam:{fl:{a:4,k:0},ot:{a:3,k:1}},
   order:{}, xprice:{uni:null,ll:null}, hotel:"dock"
 });
@@ -533,6 +534,21 @@ const RANK={
   MK:["MK-01","MK-04","MK-05","MK-02","MK-07","MK-08","MK-06","MK-03","MK-09","MK-10","MK-15","MK-17","MK-16","MK-13","MK-11","MK-12","MK-14","MK-18"]
 };
 const MUST_N={EPU:6,IOA:6,USF:6,MK:8};
+// While the big ones ride something the 6-year-old can't, she and an adult do this nearby (then Rider Switch).
+const KID_ALT={
+  "IOA-05":"Pteranodon Flyers (hecha para chicos de 36 a 56 in, con un adulto) y el parque de juegos Camp Jurassic, al lado",
+  "IOA-09":"Spider-Man o Seuss Landing (The Cat in The Hat, One Fish Two Fish, el carrusel), a 5 minutos",
+  "IOA-10":"Spider-Man o Seuss Landing (The Cat in The Hat, One Fish Two Fish, el carrusel), a 5 minutos",
+  "IOA-01":"Flight of the Hippogriff y el show de varitas de Ollivanders, en Hogsmeade",
+  "IOA-02":"Flight of the Hippogriff, cerveza de manteca y el show de varitas de Ollivanders, en Hogsmeade",
+  "IOA-11":"Popeye & Bluto's Bilge-Rat Barges o los juegos de agua de Me Ship, The Olive, en Toon Lagoon",
+  "USF-03":"Race Through New York (Jimmy Fallon), al lado, o ver al dragón de Gringotts tirar fuego",
+  "EPU-06":"Constellation Carousel y las fuentes de Celestial Park",
+  "EPU-08":"Curse of the Werewolf (40 in), en Dark Universe, o el carrusel de Celestial Park",
+  "EPU-11":"Fyre Drill y el campamento vikingo de Isle of Berk",
+  "MK-01":"Buzz Lightyear, PeopleMover o Tomorrowland Speedway, en Tomorrowland",
+  "MK-04":"Buzz Lightyear o Monsters, Inc. Laugh Floor, en Tomorrowland"
+};
 // Season-only shows and theming (Nov 14 2026 – Jan 3 2027 at Universal; MK after the last party or at the party).
 const XMAS_SHOWS=[
   {p:"EPU",n:"Super Nintendo World navideño: Mario, Luigi y Peach con ropa de Navidad (primera vez en 2026)",when:"Todo el día"},
@@ -669,13 +685,15 @@ function scheduleRun(k,opts,wx){
   const bfEnd=(out.find(o=>o.short==="Desayuno"||o.short==="Brunch")||{end:0}).end;
   const lunchAt=Math.max(12*60+15,bfEnd+210);
   let t=start,pos=null,pi=0,lunch=open>=13*60,snack=lunchAt>=14*60,dinner=false;
+  const quick=S.plan.meals!=="sit";
   // Calm pace: out of the park by 20:00 and, on full Universal days from an on-site hotel, a break at the hotel after lunch.
   const calm=S.plan.pace!=="full"&&!day.party;
   const closeEff=calm?Math.min(close,20*60):close;
   // Epic is a separate bus ride and they go only once: no hotel break there.
-  const restOk=calm&&uni&&!parks.includes("EPU")&&!late&&!isLastDay(k)&&(S.plan.hotel==="dock"||S.plan.hotel==="terra");
+  const restOk=false; // They stay in the parks; whoever is tired goes back to the hotel on their own.
   const doLunch=()=>{
-    out.push({type:"break",start:t,end:t+60,label:"Almuerzo sentados"});t+=60;lunch=true;
+    const m=quick?25:60;
+    out.push({type:"break",start:t,end:t+m,label:quick?"Almuerzo rápido: comida propia o al paso (también se come en la fila)":"Almuerzo sentados",short:quick?"Almuerzo rápido":"Almuerzo"});t+=m;lunch=true;
     if(restOk){out.push({type:"break",start:t,end:t+150,label:"Descanso en el hotel: bus, pileta o siesta, y vuelta al parque",short:"Descanso en el hotel"});t+=150;snack=true}
   };
   const used=new Set();
@@ -691,9 +709,9 @@ function scheduleRun(k,opts,wx){
   let guard=0;
   while(guard++<80){
     if(!lunch&&t>=lunchAt){doLunch();continue}
-    if(!snack&&day.party&&t>=18*60+15){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;snack=true;continue}
-    if(!snack&&!day.party&&t>=16*60&&t<17*60+30&&close-t>90){out.push({type:"break",start:t,end:t+25,label:"Descanso y merienda"});t+=25;snack=true;continue}
-    if(!dinner&&!day.party&&t>=18*60+45&&closeEff-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
+    if(!snack&&day.party&&t>=18*60+15){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;snack=true;continue}
+    if(!snack&&!quick&&!day.party&&t>=16*60&&t<17*60+30&&close-t>90){out.push({type:"break",start:t,end:t+25,label:"Descanso y merienda"});t+=25;snack=true;continue}
+    if(!dinner&&!day.party&&t>=18*60+30&&closeEff-t>20){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;dinner=true;continue}
     const cur=parks[pi];
     const inEpa=epaOn&&t<open;
     let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||(EPA_LANDS[r.p]||[]).includes(r.l)||EPA_EXTRA.includes(r.c)));
@@ -727,7 +745,7 @@ function scheduleRun(k,opts,wx){
       }
       continue;
     }
-    if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&closeEff-t>60){out.push({type:"break",start:t,end:t+45,label:"Cena"});t+=45;dinner=true;continue}
+    if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&closeEff-t>30){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;dinner=true;continue}
     if(pick&&!lunch&&t>=lunchAt-45&&t+c.total>lunchAt+60){doLunch();continue}
     if(!pick||t+c.total>closeEff+10){
       if(parks.length>1&&pi===0){t=Math.max(t,13*60+40);continue}
@@ -811,6 +829,8 @@ function routeMatch(){
 let T0=8*60,T1=22*60+30;
 function renderHorario(){
   const pc=S.plan.pace==="full"?"full":"calm";
+  const ml=S.plan.meals==="sit"?"sit":"quick";
+  $("#meals").innerHTML=[["quick","Comidas al paso"],["sit","Comidas sentados"]].map(([v,l])=>`<button data-meals="${v}" aria-pressed="${ml===v}">${l}</button>`).join("");
   $("#pace").innerHTML=[["calm","Ritmo tranquilo"],["full","Intenso, hasta el cierre"]].map(([v,l])=>`<button data-pace="${v}" aria-pressed="${pc===v}">${l}</button>`).join("");
   const tt=$("#tt");
   const showGhost=!S.plan.days["20"].on;
@@ -898,8 +918,8 @@ function renderHorario(){
     body+=col;
   }
   const noteHtml=notes.map((t,i)=>`<p><sup>${String.fromCharCode(97+i)}</sup> ${esc(t)}</p>`).join("")+
-    `<p><b>Rider Switch</b> ${g("swap")}: en las atracciones donde el de 6 no entra, un adulto espera con él; al bajar el grupo, cambian sin volver a hacer la fila. El bloque incluye las dos vueltas.</p>`+
-    `<p><b>Pausas</b>: almuerzo de una hora alrededor de las 12:15 y merienda a las 16:00, como pidieron (intenso con pausas).</p>`+
+    `<p><b>Rider Switch</b> ${g("swap")}: en las atracciones donde la de 6 no entra, un adulto se queda con ella (en cada parada dice qué pueden hacer cerca mientras tanto); al bajar el grupo, cambian sin volver a hacer la fila. El bloque incluye las dos vueltas.</p>`+
+    `<p><b>Comidas</b>: ${S.plan.meals==="sit"?"almuerzo sentados de una hora, merienda y cena de 45 minutos.":"al paso: 25 minutos para almorzar y para cenar, con comida propia o comprada; el resto se come en las filas. Se pueden cambiar a «Comidas sentados» arriba."} Nadie tiene que quedarse: quien se cansa vuelve al hotel en el bus.</p>`+
     (SHOWS[S.day]&&S.plan.days[S.day].parks.includes("MK")?`<p><b>Shows de Magic Kingdom</b>: horarios estimados con el patrón de 2025 (desfile de Navidad 12:00 y 15:00, fuegos navideños 20:30 desde el día siguiente a la última fiesta). Disney publica los de 2026 en la app My Disney Experience unas semanas antes. El desfile nocturno Starlight suele pasar alrededor de las 19:00; si lo quieren ver, se pierden 2 o 3 atracciones.</p>`:"")+
     (S.plan.days[S.day].parks.some(p=>p==="USF"||p==="IOA")?`<p><b>Navidad en Universal</b> (todos los días, 14 nov al 3 ene): desfile con globos de Macy's en Studios ≈ 17:30; proyección navideña en el castillo de Hogwarts (Islands) desde que oscurece, cada ≈ 20 min hasta el cierre; Grinchmas en Seuss Landing con funciones de día. Horarios de temporadas anteriores: confirmar en la app de Universal ese día.</p>`:"")+
     `<p><b>Mañana</b>: hora de levantarse, desayuno y salida según el alojamiento elegido, con margen para el tránsito de fiestas. Holiday Inn Kissimmee: buffet desde las 6:00, unos US$ 17 por adulto y US$ 9 por niño (Hotwire, sin confirmar con el hotel).</p>`+
@@ -917,7 +937,7 @@ function renderStops(){
     if(it.type!=="ride"){html+=`<tr class="brk"><td class="tm">${hm(it.start)}</td><td></td><td colspan="2">${esc(it.label)}</td><td class="hide-sm"></td><td></td><td class="num hide-sm">${hm(it.end)}</td><td></td></tr>`;continue}
     const r=it.ride;const idx=rides.indexOf(it);
     html+=`<tr class="${S.sel===k+r.c?"hi":""}" data-stoprow="${k}|${r.c}"><td class="tm">${hm(it.start)}</td><td><span class="code">${r.c}</span></td>
-      <td><span class="nm">${esc(r.n)}</span> <span class="glyphs">${glyphs(r)}${it.fast?g("bolt","Con Express"):""}</span><span class="sub">${esc(r.l)}${it.rs?" · Rider Switch":""}${it.transfer?" · cambio de parque":""}</span></td>
+      <td><span class="nm">${esc(r.n)}</span> <span class="glyphs">${glyphs(r)}${it.fast?g("bolt","Con Express"):""}</span><span class="sub">${esc(r.l)}${it.rs?" · Rider Switch":""}${it.transfer?" · cambio de parque":""}</span>${!it.transfer&&KID_ALT[r.c]&&elig(r,S.plan.kidCm)!=="yes"?`<span class="sub"><b>${elig(r,S.plan.kidCm)==="no"?"Mientras tanto, la de 6":"Si en la entrada no llega, la de 6"}</b> con un adulto: ${esc(KID_ALT[r.c])}.</span>`:""}</td>
       <td class="hide-sm">${it.transfer?"":eligChip(r)}</td>
       <td class="num hide-sm">${it.walk}′</td><td class="num"><b>${it.wait}′</b></td><td class="num hide-sm">${hm(it.end)}</td>
       <td style="white-space:nowrap">${it.transfer?"":`<button class="iconbtn" data-mv="${k}|${r.c}|-1" ${idx===0?"disabled":""} aria-label="Subir ${esc(r.n)}">${g("up")}</button> <button class="iconbtn" data-mv="${k}|${r.c}|1" ${idx===rides.length-1?"disabled":""} aria-label="Bajar ${esc(r.n)}">${g("down")}</button> <button class="iconbtn" data-skip="${r.c}" aria-label="Quitar ${esc(r.n)} del plan">${g("x")}</button>`}</td></tr>`;
@@ -988,9 +1008,9 @@ function renderParques(){
   $("#xmas").innerHTML=`<thead><tr><th>Parque</th><th>Qué</th><th>Cuándo</th><th>Con su plan</th></tr></thead><tbody>`+XMAS.map(([id,pk,what,when])=>{const ok=sees[id]();return `<tr><td><span class="nm">${pk}</span></td><td><span class="nm">${esc(what)}</span></td><td><span class="sub" style="margin:0">${esc(when)}</span></td><td>${ok?`<span class="mark rec">${g("check")}lo ven</span>`:'<span class="mark busy">no lo ven</span>'}</td></tr>`}).join("")+`</tbody>`;
   // park fit
   const kid=S.plan.kidCm;
-  let pf=`<thead><tr><th>Parque</th><th class="num">Harry Potter</th><th class="num">Nintendo</th><th class="num">El de 6 puede</th><th class="num">Al límite</th><th>Solo en Navidad</th><th>Lo fuerte para ustedes</th></tr></thead><tbody>`;
+  let pf=`<thead><tr><th>Parque</th><th class="num">Harry Potter</th><th class="num">Nintendo</th><th class="num">La de 6 puede</th><th class="num">Al límite</th><th>Solo en Navidad</th><th>Lo fuerte para ustedes</th></tr></thead><tbody>`;
   const xm={EPU:"Nintendo y Berk navideños (nuevo 2026), Ministerio con Navidad, fuente Cosmos",IOA:"Castillo de Hogwarts navideño de noche, Grinchmas, Hogsmeade nevado",USF:"Desfile de Macy's, Diagon Alley navideño",MK:"Desfile y fuegos de Navidad (fiesta del 18 o desde el 23)"};
-  const hi={EPU:"Mario Kart, Mine-Cart Madness, Yoshi y el Ministerio de Magia: todo con 40 in o menos, el de 6 sube a todo lo de Potter y Nintendo.",IOA:"Hogsmeade y Hagrid's (48 in). VelociCoaster para los grandes. Grinchmas en Seuss Landing.",USF:"Diagon Alley y Gringotts (42 in, el de 6 sube). Hogwarts Express si tienen Park-to-Park.",MK:"Seven Dwarfs y Big Thunder (38 in), Peter Pan, Tiana. TRON solo con 48 in."};
+  const hi={EPU:"Mario Kart, Mine-Cart Madness, Yoshi y el Ministerio de Magia: todo con 40 in o menos, la de 6 sube a todo lo de Potter y Nintendo.",IOA:"Hogsmeade y Hagrid's (48 in). VelociCoaster para los grandes. Grinchmas en Seuss Landing.",USF:"Diagon Alley y Gringotts (42 in, la de 6 sube). Hogwarts Express si tienen Park-to-Park.",MK:"Seven Dwarfs y Big Thunder (38 in), Peter Pan, Tiana. TRON solo con 48 in."};
   for(const p of ["EPU","IOA","USF","MK"]){
     const rs=RIDES.filter(r=>r.p===p&&!r.t.includes("transfer"));
     pf+=`<tr><td>${lb(p)} <span class="nm">${PARKS[p].name}</span></td><td class="num">${rs.filter(r=>r.t.includes("hp")).length||"–"}</td><td class="num">${rs.filter(r=>r.t.includes("nin")).length||"–"}</td><td class="num">${rs.filter(r=>elig(r,kid)==="yes").length} de ${rs.length}</td><td class="num">${rs.filter(r=>elig(r,kid)==="edge").length||"–"}</td><td><b>${esc(xm[p])}</b></td><td>${esc(hi[p])}</td></tr>`;
@@ -1005,7 +1025,7 @@ function renderCatalog(){
   $("#filters").innerHTML=`<div class="seg" role="group" aria-label="Parque">${[["all","Todos"],["EPU","Epic"],["IOA","Islands"],["USF","Studios"],["MK","Magic Kingdom"]].map(([v,l])=>`<button data-fpark="${v}" aria-pressed="${f.park===v}">${l}</button>`).join("")}</div>
    <button class="chip" data-f="hp" aria-pressed="${f.hp}">Harry Potter</button>
    <button class="chip" data-f="nin" aria-pressed="${f.nin}">Nintendo</button>
-   <button class="chip" data-f="kid" aria-pressed="${f.kid}">El de 6 puede</button>
+   <button class="chip" data-f="kid" aria-pressed="${f.kid}">La de 6 puede</button>
    <button class="chip" data-f="xmas" aria-pressed="${f.xmas}">Solo en estas fechas (Navidad)</button>${f.xmas?`<p class="src" style="flex-basis:100%;margin:6px 0 0">Arriba, las atracciones con versión navideña: solo Magic Kingdom las tiene. Universal no cambia sus atracciones en Navidad (tampoco en 2026); lo exclusivo de allá son shows, desfiles y ambientación, que van abajo, parque por parque.</p>`:""}`;
   const po=Object.keys(PARKS);
   let rows=RIDES.filter(r=>(f.park==="all"||r.p===f.park)&&(!f.hp||r.t.includes("hp"))&&(!f.nin||r.t.includes("nin"))&&(!f.kid||elig(r,S.plan.kidCm)!=="no")&&(!f.xmas||XMAS_RIDE[r.c])).sort((a,b)=>po.indexOf(a.p)-po.indexOf(b.p)||rankOf(a)-rankOf(b));
@@ -1131,12 +1151,12 @@ function renderExpress(){
    ${(xp.uni||xp.ll)?`<p class="total" style="display:block"><span class="src">Costo para 8 personas:</span> ${xp.uni?`Express ${usd(xp.uni*8)} por día`:""}${xp.uni&&xp.ll?" · ":""}${xp.ll?`Lightning Lane ${usd(xp.ll*8)}`:""}</p>`:""}`;
 }
 const TODO=[
-  ["t11","Comprar la fiesta de Navidad del jueves 17 para las dos familias","Familia de Florida: 4 × US$ 229 (US$ 975,56 con impuesto, ya en el carrito). Otra familia: 3 × US$ 229 + 1 × US$ 219 (el de 6). No reembolsable; el 20 y el 22 ya se agotaron."],
+  ["t11","Comprar la fiesta de Navidad del jueves 17 para las dos familias","Familia de Florida: 4 × US$ 229 (US$ 975,56 con impuesto, ya en el carrito). Otra familia: 3 × US$ 229 + 1 × US$ 219 (la de 6). No reembolsable; el 20 y el 22 ya se agotaron."],
   ["t12","Cerrar el paquete de Dockside de la otra familia","Cotización del 17 oct: del 17 al 22, US$ 2.783,15 con impuestos. Confirmar que siga la promo de 25% del hotel y que la entrada anticipada aplique los 5 días."],
   ["t1","Comprar Universal residente FL para la familia de Florida","3 días Park-to-Park (US$ 285 + impuesto). Elegir 3 de los 5 días de la otra familia; primer uso hasta el 21 inclusive. Solo online, con ID de Florida."],
   ["t13","Definir dónde duerme la familia de Florida del 17 al 22","¿Otra habitación en Dockside o vuelven a casa? Sin hotel de Universal no tienen entrada anticipada. El descuento de residente no aplica en Dockside (sí en Terra Luna y Surfside, de domingo a jueves)."],
   ["t14","Cancelar el Airbnb si ya no lo usan","Se puede cancelar sin costo. Hacerlo recién cuando el otro alojamiento esté confirmado."],
-  ["t5","Medir al de 6 años con zapatillas","Si llega a 122 cm sube a Hagrid's, Forbidden Journey, TRON y Stardust Racers."],
+  ["t5","Medir a la de 6 años con zapatillas","Si llega a 122 cm sube a Hagrid's, Forbidden Journey, TRON y Stardust Racers."],
   ["t6","Instalar las apps: Universal Orlando y My Disney Experience","Horarios de shows, filas virtuales y Express se manejan desde ahí."],
   ["t8","Cargar el horario real de Universal y de los shows cuando lo publiquen","Hoy los horarios de diciembre son estimados."]
 ];
@@ -1217,6 +1237,7 @@ document.addEventListener("click",e=>{
   if(ds.view){showView(ds.view);return}
   if(ds.day){S.day=ds.day;renderHorario();return}
   if(ds.pace){savePlan({pace:ds.pace});return}
+  if(ds.meals){savePlan({meals:ds.meals});return}
   if(ds.express){const k=ds.express;const d=S.plan.days[k];savePlan({days:{...S.plan.days,[k]:{...d,express:!d.express}}});return}
   if(ds.addday){const d=S.plan.days[ds.addday];savePlan({days:{...S.plan.days,[ds.addday]:{...d,on:true}}});S.day=ds.addday;return}
   if(ds.rmday){const d=S.plan.days[ds.rmday];savePlan({days:{...S.plan.days,[ds.rmday]:{...d,on:false}}});return}
