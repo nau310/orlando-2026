@@ -677,6 +677,9 @@ function waitAt(r,t,open,close,ctx){
 function riderSwitch(r){return elig(r,S.plan.kidCm)==="no"}
 // The greedy pass is myopic, so it runs with several rank weights and keeps the day that rides the best-ranked set.
 // Bedtime after a park day: last item + getting back to the hotel + getting ready for bed.
+// Two-park days cross on the Hogwarts Express around 12:30: its lines grow through the afternoon (2025 averages:
+// King's Cross 15 min at 12h vs 43 at 14h, Hogsmeade 17 vs 33; Touring Plans: ride it in the morning or midday).
+const SWITCH_AT=12*60+30;
 const isLastDay=k=>activeDays().slice(-1)[0]?.k===k;
 // Whether a day really gets early admission: its first park has it and the night before leaves time to sleep and get there.
 function epaUsable(k){
@@ -795,7 +798,7 @@ function scheduleRun(k,opts,wx){
       if(L.wait!=null){const lw=L.wait*(POSTED[r.p]||1);if(dt<45) w=Math.max(5,Math.round(lw/5)*5);else{const h=waitAt(r,F.t,open,close,ctx);const ratio=Math.max(.5,Math.min(2,lw/Math.max(5,h)));const f=Math.max(0,1-(dt-45)/120);w=Math.round(w*(1+(ratio-1)*f)/5)*5}}}
     return {wk,w,rs,total:wk+w+r.d+(rs?r.d+6:0)}};
   // On a two-park day only keep the shows of the park they are in at that hour (switch ≈ 13:40).
-  const inPark=sh=>parks.length<2?parks.includes(sh.p):sh.p===parks[sh.start<13*60+40?0:1];
+  const inPark=sh=>parks.length<2?parks.includes(sh.p):sh.p===parks[sh.start<SWITCH_AT?0:1];
   const shows=[...(day.party?PARTY_SHOWS:(SHOWS[k]||[])),...UNI_SHOWS].filter(inPark).filter(sh=>!F||sh.start-5>F.t).sort((a,b)=>a.start-b.start);
   const isLast=activeDays().slice(-1)[0]?.k===k;
   // Finish an area before moving on: a small cost to change land, a big one to go back to a land already left.
@@ -813,7 +816,7 @@ function scheduleRun(k,opts,wx){
     const inEpa=epaOn&&t<open;
     let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||EPA_RIDES.has(r.c)));
     if(inEpa&&!cands.length){t=open;continue}
-    const wantSwitch=parks.length>1&&pi===0&&(t>=13*60+40||!cands.length);
+    const wantSwitch=parks.length>1&&pi===0&&(t>=SWITCH_AT||!cands.length);
     if(wantSwitch){
       const he=RIDES.find(r=>r.p===cur&&r.t.includes("transfer"));
       const wk=walk(pos,he);const w=waitAt(he,t+wk,open,close,ctx);
@@ -847,7 +850,7 @@ function scheduleRun(k,opts,wx){
     if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&closeEff-t>30){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;dinner=true;continue}
     if(pick&&!lunch&&t>=lunchAt-45&&t+c.total>lunchAt+60){doLunch();continue}
     if(!pick||t+c.total>closeEff+10){
-      if(parks.length>1&&pi===0){t=Math.max(t,13*60+40);continue}
+      if(parks.length>1&&pi===0){t=Math.max(t,SWITCH_AT);continue}
       break;
     }
     used.add(pick.c);
