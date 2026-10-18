@@ -476,7 +476,7 @@ const ROUTES={
   B:{name:"B",title:"4 días, del 20 al 23",days:{"20":["IOA"],"21":["USF"],"22":["EPU"],"23":["MK"]}},
   C:{name:"C",title:"3 días antes, del 18 al 20",days:{"18":["IOA","USF"],"19":["MK"],"20":["EPU"]}},
   D:{name:"D",title:"3 días desde el sábado, del 19 al 21",days:{"19":["MK"],"20":["IOA","USF"],"21":["EPU"]}},
-  G:{name:"G",title:"Reservado: del 17 al 22, fiesta de Navidad + 5 días de Universal en Dockside",party:"17",hotel:"dock",epa:true,days:{"17":["MK"],"18":["IOA"],"19":["EPU"],"20":["USF"],"21":["IOA","USF"],"22":["EPU"]}},
+  G:{name:"G",title:"Reservado: del 17 al 22, fiesta de Navidad + 5 días de Universal en Dockside",party:"17",hotel:"dock",epa:true,days:{"17":["MK"],"18":["IOA"],"19":["EPU"],"20":["USF"],"21":["IOA","USF"],"22":["USF","IOA"]}},
   F:{name:"F",title:"Desde el viernes 18, con la fiesta de Navidad de Magic Kingdom",party:"18",days:{"18":["MK"],"19":["EPU"],"20":["IOA"],"21":["USF"]}},
   E:{name:"E",title:"Solo 2 parques de Universal, sin Epic, del 21 al 23",days:{"21":["IOA"],"22":["USF"],"23":["MK"]}}
 };
@@ -698,7 +698,7 @@ function scheduleRun(k,opts,wx){
       out.push({type:"break",show:true,start:t,end:sh.start+sh.d,label:`${sh.label}, ${hm(sh.start)}. Ubicarse ${sh.lead} min antes`,short:sh.short});
       t=sh.start+sh.d;si++;
       if(isLast&&si===shows.length){
-        out.push({type:"break",start:t,end:t+50,label:parks.includes("MK")?"Salida del parque: tranvía o ferry al estacionamiento, con toda la gente del show":"Salida del parque: caminar por CityWalk hasta el estacionamiento",short:"Salida al auto"});
+        out.push({type:"break",start:t,end:t+50,label:parks.includes("MK")?"Salida del parque: tranvía o ferry al estacionamiento, con toda la gente del show":(S.plan.hotel==="dock"||S.plan.hotel==="terra")?"Salida del parque: bus al hotel a buscar el auto":"Salida del parque: caminar por CityWalk hasta el estacionamiento",short:"Salida al auto"});
         out.push({type:"break",start:t+50,end:t+60,label:"Vuelta a casa",short:"Vuelta"});
         break;
       }
@@ -924,7 +924,7 @@ function renderParques(){
   const why={
     A:{"21":"Nintendo y Ministerio de Magia. Epic está lleno los tres días; el lunes llegan directo del auto.","22":"Hogsmeade a la mañana, Hogwarts Express y Diagon Alley a la tarde. Universal Studios recomendado ese día.","23":"Recomendado ese día y abierto hasta las 22:00. El martes cierra a las 18:00 por la fiesta."},
     C:{"18":"Islands recomendado el viernes y día de multitud 7. Hogsmeade a la mañana, Hogwarts Express y Diagon Alley a la tarde.","19":"Abierto hasta las 22:00 con Happily Ever After. El show y el desfile de Navidad todavía son solo para la fiesta.","20":"Epic no aparece lleno el domingo (sí del 21 al 23). Nintendo y Ministerio de Magia."},
-    G:{"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Multitud 6.","18":"Islands recomendado el viernes, con entrada anticipada: Hagrid's, VelociCoaster y el castillo navideño de noche.","19":"Epic sin marca de lleno el sábado, con entrada anticipada: Nintendo y Ministerio de Magia.","20":"Studios recomendado el domingo: Gringotts, Simpsons, Mummy y el desfile de Macy's.","21":"Park-to-Park: Hogwarts Express y repetir lo que más les gustó en Islands y Studios.","22":"Check-out. Segundo día de Epic para lo que faltó (entrada anticipada). Sugerencia: se puede cambiar."},
+    G:{"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Multitud 6.","18":"Islands recomendado el viernes, con entrada anticipada: Hagrid's, VelociCoaster y el castillo navideño de noche.","19":"Epic sin marca de lleno el sábado, con entrada anticipada: Nintendo y Ministerio de Magia.","20":"Studios recomendado el domingo: Gringotts, Simpsons, Mummy y el desfile de Macy's.","21":"Park-to-Park: Hogwarts Express y repetir lo que más les gustó en Islands y Studios.","22":"Check-out. Studios a la mañana (recomendado ese día), Hogwarts Express y Islands a la tarde; castillo navideño al oscurecer y vuelta a casa en auto. Si el sábado Epic les encantó, se cambia: la entrada sirve para cualquier parque."},
     F:{"18":"Fiesta de Navidad de Mickey: llegan desde casa a las 16:00 y se quedan hasta medianoche. Desfile y fuegos de Navidad, filas cortas (entradas limitadas).","19":"Epic no aparece lleno el sábado. Nintendo y Ministerio de Magia.","20":"Islands recomendado el domingo. VelociCoaster y el castillo navideño a la noche.","21":"Universal Studios recomendado el lunes. Desfile de Macy's y después vuelta a casa."},
     E:{"21":"Islands entero: Hagrid's, VelociCoaster, Forbidden Journey, Kong y el castillo navideño a la noche.","22":"Studios entero: Gringotts, Mummy, Simpsons, Diagon Alley con calma y el desfile de Navidad. Hogwarts Express ida y vuelta.","23":"Recomendado ese día, con desfile y fuegos de Navidad."},
     D:{"19":"Abierto hasta las 22:00 con Happily Ever After. Multitud 8 y sin marca de lleno.","20":"Islands y Universal Studios recomendados el domingo: Hogsmeade, Hogwarts Express y Diagon Alley.","21":"Epic aparece lleno, pero es el último día: se puede cortar temprano y salir a la ruta."},
