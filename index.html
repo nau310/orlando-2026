@@ -706,6 +706,13 @@ function riderSwitch(r){return elig(r,S.plan.kidCm)!=="yes"}
 // The kids' favorites (19 oct 2026): Harry Potter, Mario/Nintendo and the Simpsons. They never displace an imperdible,
 // but they win the free time, the optional stops and the repeats.
 const FAN_SHOW=/Ollivander|Celestina|Beedle|Frog Choir|Triwizard|Cirque Arcanus|Gringotts Money|Bowser|Power-Up|Hogwarts/i;
+// Where to spend free time: walking the kids' favorite lands (things to do there that are not rides).
+const FREE_WALK={
+  USF:"pasear por Springfield (Kwik-E-Mart, Moe's, Krusty Burger, Kang & Kodos) y Diagon Alley (el dragón de Gringotts que tira fuego cada tanto, Knockturn Alley, los puntos de hechizos con varita interactiva)",
+  IOA:"pasear por Hogsmeade (cerveza de manteca, los puntos de hechizos con varita interactiva y, de noche, la proyección navideña del castillo) y Seuss Landing para la de 6",
+  EPU:"pasear por Super Nintendo World (los desafíos de la Power-Up Band, Toadstool Cafe) y el Ministerio de Magia (París mágico, Le Cirque Arcanus)",
+  MK:"pasear por Main Street navideña y el castillo"
+};
 const isFan=r=>r.t.includes("hp")||r.t.includes("nin")||r.c==="USF-05"||(!!r.show&&FAN_SHOW.test(r.n));
 // Single rider lines the official Universal app publishes (ThemeParks.wiki feed, 19 oct 2026). Universal's Rider's Guide
 // (effective 4 oct 2025) requires a Supervising Companion aged 14+ for anyone under 48" (122 cm), so the 6-year-old never
@@ -912,16 +919,17 @@ function scheduleRun(k,opts,wx){
   }
   // The Hogwarts Express back (King's Cross → Hogsmeade) shows a different story: with time left on a day that crossed to
   // Studios, take it once in the trip and finish in Islands (same exit to CityWalk).
+  let freeIn=parks[pi];
   const backTrain=RIDES.find(x=>x.p==="USF"&&x.t.includes("transfer"));
   const rodeBack=activeDays().some(d=>+d.k<+k&&schedule(d.k).items.some(o=>o.ride===backTrain));
   if(!F&&!day.party&&parks[1]==="USF"&&pi===1&&backTrain&&!rodeBack&&close-t>=45){
     const wk=walk(pos,backTrain),w=waitAt(backTrain,t+wk,open,close,ctx);
     out.push({type:"ride",ride:backTrain,start:t,walk:wk,wait:w,rideStart:t+wk+w,end:t+wk+w+backTrain.d,transfer:true,back:true});
-    t+=wk+w+backTrain.d;pos=RIDES.find(x=>x.p==="IOA"&&x.t.includes("transfer"))?.c||null;
+    t+=wk+w+backTrain.d;pos=RIDES.find(x=>x.p==="IOA"&&x.t.includes("transfer"))?.c||null;freeIn="IOA";
   }
   // Everything planned is done before closing: the rest of the day is free (nothing worth repeating has a short line).
   if(!isLast&&!F&&!day.party&&close-t>=60){
-    out.push({type:"break",start:t,end:close,label:`Tiempo libre hasta el cierre (${hm(close)}): repetir lo que más les gustó si la fila está corta (miren la pestaña 5), compras, CityWalk o volver al hotel a descansar`,short:"Tiempo libre"});
+    out.push({type:"break",start:t,end:close,label:`Tiempo libre hasta el cierre (${hm(close)}): ${FREE_WALK[freeIn]||"pasear"}. O repetir lo que más les gustó si la fila está corta (pestaña 5), o volver al hotel a descansar`,short:"Tiempo libre"});
   }
   // Last day without a closing show (Epic): leave at the end of the last ride.
   if(isLast&&!F&&!out.some(o=>o.short==="Vuelta")){
