@@ -1210,7 +1210,7 @@ function renderCatalog(){
     <td class="hide-sm" style="white-space:nowrap">${r.h?g("height"):""} ${hInfo(r)}</td><td>${eligChip(r)}</td>
     <td class="num hide-sm">${r.w}′ <span class="est">est.</span></td>
     <td class="num hide-sm">${live?(live.status==="OPERATING"&&live.wait!=null?`<b>${live.wait}′</b>`:`<span class="src">${live.status==="OPERATING"?"–":"cerrada"}</span>`):'<span class="src">–</span>'}</td>
-    <td class="prio" data-sug="${pickIsSug(r)?1:0}"><div class="seg" role="group" aria-label="Prioridad de ${esc(r.n)}">${[["must","Imperdible"],["maybe","Si da"],["no","No"]].map(([v,l])=>`<button data-pick="${r.c}|${v}" aria-pressed="${pk===v}">${l}</button>`).join("")}</div></td></tr>`;
+    <td class="prio" data-sug="${pickIsSug(r)?1:0}">${r.t.includes("transfer")?(()=>{const ds=activeDays().filter(d=>{const ps=S.plan.days[d.k].parks;return ps.length>1&&ps[0]===r.p});return `<span class="mark rec">${g("check")}En el plan</span><span class="sub">Lo toman para cruzar de parque${ds.length?": "+ds.map(d=>d.dow+" "+d.k).join(", "):""}. Necesita entrada Park-to-Park.</span>`})():`<div class="seg" role="group" aria-label="Prioridad de ${esc(r.n)}">${[["must","Imperdible"],["maybe","Si da"],["no","No"]].map(([v,l])=>`<button data-pick="${r.c}|${v}" aria-pressed="${pk===v}">${l}</button>`).join("")}</div>`}</td></tr>`;
   }
   if(f.xmas){
     // Universal has no Christmas ride versions: its season-only things are shows, so list them here too.
