@@ -829,9 +829,9 @@ function scheduleRun(k,opts,wx){
   const manual=opts.forceOrder||(!opts.ignoreOrder&&S.plan.order[k])||null;
   const seen=seenBefore(k);ctx.seen=seen;
   const prioW=r=>seen.has(r.c)?.5:pickOf(r)==="must"?4:1;
-  // Something done on an earlier day is only repeated if it is an imperdible (nobody rides Jimmy Fallon three times);
-  // shows are never repeated, and a repeat with more than an hour of line is not worth it.
-  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||pickOf(r)!=="must"||w>60);
+  // Each imperdible once in the trip is the goal; only the park's top 3 are repeated, and only if there is time ("si da",
+  // their low value keeps them behind anything new) and the line is an hour or less. Shows are never repeated.
+  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||rankOf(r)>3||w>60);
   const cost=(r,at)=>{const wk=walk(pos,r);let w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);
     if(F&&F.live[r.c]){const L=F.live[r.c],dt=at+wk-F.t;
       // A ride that is down comes back after its typical outage: ~60 min in the morning, ~90 from noon (Touring Plans).
@@ -904,6 +904,10 @@ function scheduleRun(k,opts,wx){
     out.push({type:"ride",ride:pick,start:t,walk:c.wk,wait:c.w,rideStart:t+c.wk+c.w,end:t+c.total,rs:c.rs,sr:!!c.sr,fast:(ctx.express&&PARKS[pick.p].uni)||(ll&&ll.has(pick.c))});
     t+=c.total;pos=pick.c;
     if(pick.l!==curLand){if(curLand)leftLands.add(curLand);curLand=pick.l}
+  }
+  // Everything planned is done before closing: the rest of the day is free (nothing worth repeating has a short line).
+  if(!isLast&&!F&&!day.party&&close-t>=60){
+    out.push({type:"break",start:t,end:close,label:`Tiempo libre hasta el cierre (${hm(close)}): repetir lo que más les gustó si la fila está corta (miren la pestaña 5), compras, CityWalk o volver al hotel a descansar`,short:"Tiempo libre"});
   }
   // Last day without a closing show (Epic): leave at the end of the last ride.
   if(isLast&&!F&&!out.some(o=>o.short==="Vuelta")){
