@@ -807,10 +807,9 @@ function scheduleRun(k,opts,wx){
   const manual=opts.forceOrder||(!opts.ignoreOrder&&S.plan.order[k])||null;
   const seen=seenBefore(k);ctx.seen=seen;
   const prioW=r=>seen.has(r.c)?.5:pickOf(r)==="must"?4:1;
-  // A second full day in the same park (Epic again) only repeats the best: top-6 rides with lines of an hour or less,
-  // plus whatever they have not done yet. Then they leave.
-  const repeatDay=parks.length===1&&activeDays().some(d=>+d.k<+k&&String(S.plan.days[d.k].parks)===String(parks));
-  const skipRepeat=(r,w)=>repeatDay&&seen.has(r.c)&&(!!r.show||rankOf(r)>6||w>60);
+  // Something done on an earlier day is only repeated if it is an imperdible (nobody rides Jimmy Fallon three times);
+  // shows are never repeated, and a repeat with more than an hour of line is not worth it.
+  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||pickOf(r)!=="must"||w>60);
   const cost=(r,at)=>{const wk=walk(pos,r);let w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);
     if(F&&F.live[r.c]){const L=F.live[r.c],dt=at+wk-F.t;
       // A ride that is down comes back after its typical outage: ~60 min in the morning, ~90 from noon (Touring Plans).
