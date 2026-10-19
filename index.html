@@ -844,7 +844,9 @@ function scheduleRun(k,opts,wx){
     return {wk,w,rs,total:wk+w+r.d+(rs?r.d+6:0)}};
   // On a two-park day only keep the shows of the park they are in at that hour (switch ≈ 13:40).
   const inPark=sh=>parks.length<2?parks.includes(sh.p):sh.p===parks[sh.start<SWITCH_AT?0:1];
-  const shows=[...(day.party?PARTY_SHOWS:(SHOWS[k]||[])),...UNI_SHOWS].filter(inPark).filter(sh=>!F||sh.start-5>F.t).sort((a,b)=>a.start-b.start);
+  // A daily show already seen on an earlier day (Macy's parade, the castle projection) is not planned again.
+  const shownBefore=new Set();{const ad=activeDays(),ix=ad.findIndex(d=>d.k===k);for(const d of ad.slice(0,Math.max(0,ix)))for(const o of schedule(d.k).items)if(o.show)shownBefore.add(o.short)}
+  const shows=[...(day.party?PARTY_SHOWS:(SHOWS[k]||[])),...UNI_SHOWS].filter(inPark).filter(sh=>!shownBefore.has(sh.short)).filter(sh=>!F||sh.start-5>F.t).sort((a,b)=>a.start-b.start);
   const isLast=activeDays().slice(-1)[0]?.k===k;
   // Finish an area before moving on: a small cost to change land, a big one to go back to a land already left.
   // Hubs (Celestial Park, Hollywood) are crossed anyway, so going back there is free.
