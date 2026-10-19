@@ -703,6 +703,10 @@ function waitAt(r,t,open,close,ctx){
 }
 // "Al límite" counts as not riding: Universal measures at the entrance and 120 cm is under 122 (plan the safe way).
 function riderSwitch(r){return elig(r,S.plan.kidCm)!=="yes"}
+// The kids' favorites (19 oct 2026): Harry Potter, Mario/Nintendo and the Simpsons. They never displace an imperdible,
+// but they win the free time, the optional stops and the repeats.
+const FAN_SHOW=/Ollivander|Celestina|Beedle|Frog Choir|Triwizard|Cirque Arcanus|Gringotts Money|Bowser|Power-Up|Hogwarts/i;
+const isFan=r=>r.t.includes("hp")||r.t.includes("nin")||r.c==="USF-05"||(!!r.show&&FAN_SHOW.test(r.n));
 // Single rider lines the official Universal app publishes (ThemeParks.wiki feed, 19 oct 2026). Universal's Rider's Guide
 // (effective 4 oct 2025) requires a Supervising Companion aged 14+ for anyone under 48" (122 cm), so the 6-year-old never
 // rides single rider. Where she cannot ride, the others take the single rider line and one adult (taking turns) stays with
@@ -746,7 +750,7 @@ function schedule(k,opts={}){
 function scheduleBest(k,opts){
   if(!opts.ignoreOrder&&S.plan.order[k]) return scheduleRun(k,opts,1);
   const seen=seenBefore(k);
-  const val=r=>seen.has(r.c)?3:(pickOf(r)==="must"?30:2)+(13-Math.min(rankOf(r),13));
+  const val=r=>(seen.has(r.c)?3:(pickOf(r)==="must"?30:2)+(13-Math.min(rankOf(r),13)))+(isFan(r)?5:0);
   // Objective (like Touring Plans' optimizer): do the most valuable stops, then spend the least time in line and walking.
   // Walking counts 1.5 times: it is certain (the waits are estimates) and it is what tires a 6-year-old.
   const score=sc=>{const rs=sc.items.filter(o=>o.type==="ride"&&!o.transfer);return rs.reduce((a,o)=>a+val(o.ride),0)*1000-rs.reduce((a,o)=>a+o.wait+1.5*o.walk,0)};
@@ -828,10 +832,11 @@ function scheduleRun(k,opts,wx){
   if(F){out.length=0;t=F.t;pos=F.pos||null;pi=F.pi||0;lunch=lunch||t>=14*60;snack=true;dinner=t>=20*60;ctx.first=false;for(const c of F.done)used.add(c)}
   const manual=opts.forceOrder||(!opts.ignoreOrder&&S.plan.order[k])||null;
   const seen=seenBefore(k);ctx.seen=seen;
-  const prioW=r=>seen.has(r.c)?.5:pickOf(r)==="must"?4:1;
-  // Each imperdible once in the trip is the goal; only the park's top 3 are repeated, and only if there is time ("si da",
+  const prioW=r=>(seen.has(r.c)?.5:pickOf(r)==="must"?4:1)*(isFan(r)?1.5:1);
+  // Each imperdible once in the trip is the goal; only the park's top 3 and the kids' favorites (Harry Potter, Nintendo,
+  // Simpsons) are repeated, and only if there is time ("si da",
   // their low value keeps them behind anything new) and the line is an hour or less. Shows are never repeated.
-  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||rankOf(r)>3||w>60);
+  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||(rankOf(r)>3&&!isFan(r))||w>60);
   const cost=(r,at)=>{const wk=walk(pos,r);let w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);
     if(F&&F.live[r.c]){const L=F.live[r.c],dt=at+wk-F.t;
       // A ride that is down comes back after its typical outage: ~60 min in the morning, ~90 from noon (Touring Plans).
@@ -904,6 +909,15 @@ function scheduleRun(k,opts,wx){
     out.push({type:"ride",ride:pick,start:t,walk:c.wk,wait:c.w,rideStart:t+c.wk+c.w,end:t+c.total,rs:c.rs,sr:!!c.sr,fast:(ctx.express&&PARKS[pick.p].uni)||(ll&&ll.has(pick.c))});
     t+=c.total;pos=pick.c;
     if(pick.l!==curLand){if(curLand)leftLands.add(curLand);curLand=pick.l}
+  }
+  // The Hogwarts Express back (King's Cross → Hogsmeade) shows a different story: with time left on a day that crossed to
+  // Studios, take it once in the trip and finish in Islands (same exit to CityWalk).
+  const backTrain=RIDES.find(x=>x.p==="USF"&&x.t.includes("transfer"));
+  const rodeBack=activeDays().some(d=>+d.k<+k&&schedule(d.k).items.some(o=>o.ride===backTrain));
+  if(!F&&!day.party&&parks[1]==="USF"&&pi===1&&backTrain&&!rodeBack&&close-t>=45){
+    const wk=walk(pos,backTrain),w=waitAt(backTrain,t+wk,open,close,ctx);
+    out.push({type:"ride",ride:backTrain,start:t,walk:wk,wait:w,rideStart:t+wk+w,end:t+wk+w+backTrain.d,transfer:true,back:true});
+    t+=wk+w+backTrain.d;pos=RIDES.find(x=>x.p==="IOA"&&x.t.includes("transfer"))?.c||null;
   }
   // Everything planned is done before closing: the rest of the day is free (nothing worth repeating has a short line).
   if(!isLast&&!F&&!day.party&&close-t>=60){
