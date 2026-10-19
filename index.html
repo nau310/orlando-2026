@@ -655,7 +655,9 @@ function dayCrowd(k){
     out[p]=(.5+C[k]/100)/(.5+sum/n/100)}
   return out;
 }
-function typW(r,ctx){const D=BRAIN.waits[r.c];return D?(D[ctx.wk]||D.d||D.y||r.w):r.w}
+// A show's "wait" is the time until it starts. A show the family marked imperdible themselves is worth up to 30 idle
+// minutes, so it is not dropped for rides with shorter lines (suggested picks keep the plain value).
+function typW(r,ctx){if(r.show)return r.show.lead+(S.picks[r.c]?.p==="must"&&!ctx.seen?.has(r.c)?30:0);const D=BRAIN.waits[r.c];return D?(D[ctx.wk]||D.d||D.y||r.w):r.w}
 function waitAt(r,t,open,close,ctx){
   if(r.show){if(r.show.party&&!ctx.party)return 9999;if(!r.show.times)return r.show.queue; // walk-in: a short line
     const s=r.show.times.find(x=>x-t>=r.show.lead);return s==null?9999:s-t}
@@ -800,7 +802,7 @@ function scheduleRun(k,opts,wx){
   const F=opts.from;
   if(F){out.length=0;t=F.t;pos=F.pos||null;pi=F.pi||0;lunch=lunch||t>=14*60;snack=true;dinner=t>=20*60;ctx.first=false;for(const c of F.done)used.add(c)}
   const manual=opts.forceOrder||(!opts.ignoreOrder&&S.plan.order[k])||null;
-  const seen=seenBefore(k);
+  const seen=seenBefore(k);ctx.seen=seen;
   const prioW=r=>seen.has(r.c)?.5:pickOf(r)==="must"?4:1;
   const cost=(r,at)=>{const wk=walk(pos,r);let w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);
     if(F&&F.live[r.c]){const L=F.live[r.c],dt=at+wk-F.t;
