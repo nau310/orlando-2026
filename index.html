@@ -874,6 +874,11 @@ function scheduleRun(k,opts,wx){
     t+=c.total;pos=pick.c;
     if(pick.l!==curLand){if(curLand)leftLands.add(curLand);curLand=pick.l}
   }
+  // Last day without a closing show (Epic): leave at the end of the last ride.
+  if(isLast&&!F&&!out.some(o=>o.short==="Vuelta")){
+    out.push({type:"break",start:t,end:t+50,label:(S.plan.hotel==="dock"||S.plan.hotel==="terra")?"Salida del parque: bus al hotel a buscar el auto":"Salida del parque al estacionamiento",short:"Salida al auto"});
+    out.push({type:"break",start:t+50,end:t+60,label:"Vuelta a casa",short:"Vuelta"});
+  }
   const left=pool.filter(r=>!used.has(r.c));
   const rides=out.filter(o=>o.type==="ride"&&!o.transfer);
   return {items:out,left,open,close,epa,queue:rides.reduce((a,o)=>a+o.wait,0),count:rides.length,mustLeft:left.filter(r=>pickOf(r)==="must"&&!seen.has(r.c)),seen};
