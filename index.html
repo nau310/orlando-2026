@@ -741,10 +741,12 @@ function epaUsable(k){
 // (Universal Family Vacations, Theme Park Shark); Epic the Ministry first (Park Prodigy, Orlando Informer);
 // Studios Gringotts, which the 6-year-old can ride (Universal Family Vacations, Orlando Theme Parks).
 const ROPE={IOA:["IOA-01","IOA-05"],EPU:["EPU-01"],USF:["USF-01"]};
+// Hagrid's is the kids' Potter favorite and early admission is the only short line, so it opens a second Islands day too.
+const ROPE_AGAIN=new Set(["IOA-01"]);const REPEAT_OK=new Set(["IOA-05"]);
 // Rides already planned on an earlier day: they still fit as repeats, but new rides go first.
 function seenBefore(k){
-  const ad=activeDays(),ix=ad.findIndex(d=>d.k===k),seen=new Map();
-  for(const d of ad.slice(0,Math.max(0,ix))) for(const o of schedule(d.k).items) if(o.type==="ride"&&!o.transfer&&!seen.has(o.ride.c)) seen.set(o.ride.c,d.k);
+  const ad=activeDays(),ix=ad.findIndex(d=>d.k===k),seen=new Map();seen.times=new Map();
+  for(const d of ad.slice(0,Math.max(0,ix))) for(const o of schedule(d.k).items) if(o.type==="ride"&&!o.transfer){if(!seen.has(o.ride.c))seen.set(o.ride.c,d.k);seen.times.set(o.ride.c,(seen.times.get(o.ride.c)||0)+1)}
   return seen;
 }
 function bedtime(k){
@@ -846,10 +848,10 @@ function scheduleRun(k,opts,wx){
   const manual=opts.forceOrder||(!opts.ignoreOrder&&S.plan.order[k])||null;
   const seen=seenBefore(k);ctx.seen=seen;
   const prioW=r=>(seen.has(r.c)?.5:pickOf(r)==="must"?4:1)*(isFan(r)?1.5:1);
-  // Each imperdible once in the trip is the goal; only the park's top 3 and the kids' favorites (Harry Potter, Nintendo,
-  // Simpsons) are repeated, and only if there is time ("si da",
-  // their low value keeps them behind anything new) and the line is an hour or less. Shows are never repeated.
-  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||(rankOf(r)>3&&!isFan(r))||w>60);
+  // Each imperdible once in the trip is the goal; only the kids' favorites (Harry Potter, Nintendo, Simpsons) and
+  // VelociCoaster for the older ones are repeated, and only if there is time ("si da", their low value keeps them
+  // behind anything new) and the line is an hour or less. Shows are never repeated.
+  const skipRepeat=(r,w)=>seen.has(r.c)&&(!!r.show||!(isFan(r)||REPEAT_OK.has(r.c))||w>60);
   const cost=(r,at)=>{const wk=walk(pos,r);let w=waitAt(r,at+wk,open,close,ctx);const rs=riderSwitch(r);
     if(F&&F.live[r.c]){const L=F.live[r.c],dt=at+wk-F.t;
       // A ride that is down comes back after its typical outage: ~60 min in the morning, ~90 from noon (Touring Plans).
@@ -870,7 +872,7 @@ function scheduleRun(k,opts,wx){
   // Hubs (Celestial Park, Hollywood) are crossed anyway, so going back there is free.
   let curLand=null;const leftLands=new Set();const HUBS=new Set(["Celestial Park","Hollywood","Production Central"]);
   const landPen=r=>(curLand&&r.l!==curLand?5:0)+(leftLands.has(r.l)&&!HUBS.has(r.l)?25:0);
-  let si=0;
+  let si=0,noMore=false;
   let guard=0;
   while(guard++<80){
     if(!lunch&&t>=lunchAt){doLunch();continue}
@@ -881,7 +883,7 @@ function scheduleRun(k,opts,wx){
     const inEpa=epaOn&&t<open;
     let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||EPA_RIDES.has(r.c)));
     if(inEpa&&!cands.length){t=open;continue}
-    const wantSwitch=parks.length>1&&pi===0&&(t>=SWITCH_AT||!cands.length);
+    const wantSwitch=parks.length>1&&pi===0&&(t>=SWITCH_AT||!cands.length||noMore);
     if(wantSwitch){
       const he=RIDES.find(r=>r.p===cur&&r.t.includes("transfer"));
       const wk=walk(pos,he);const w=waitAt(he,t+wk,open,close,ctx);
@@ -893,7 +895,7 @@ function scheduleRun(k,opts,wx){
     const shCut=sh&&parks[pi]===sh.p?sh.start-sh.lead:Infinity;
     // Score: walking counts double, since crossing the park back and forth is the costly mistake.
     let pick=null,c=null;
-    if(!manual&&ctx.first&&t<start+90){const rc=(ROPE[cur]||[]).find(cd=>cands.some(r=>r.c===cd)&&!seen.has(cd));if(rc){pick=byCode[rc];c=cost(pick,t)}}
+    if(!manual&&ctx.first&&t<start+90){const rc=(ROPE[cur]||[]).find(cd=>cands.some(r=>r.c===cd)&&(!seen.has(cd)||(inEpa&&ROPE_AGAIN.has(cd)&&(seen.times.get(cd)||0)<2)));if(rc){pick=byCode[rc];c=cost(pick,t)}}
     if(!pick&&manual){
       const code=manual.find(cd=>cands.some(r=>r.c===cd));
       if(code){pick=byCode[code];c=cost(pick,t)}
@@ -915,7 +917,8 @@ function scheduleRun(k,opts,wx){
     if(pick&&!dinner&&!day.party&&t>=17*60+45&&t+c.total>19*60+30&&closeEff-t>30){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;dinner=true;continue}
     if(pick&&!lunch&&t>=lunchAt-45&&t+c.total>lunchAt+60){doLunch();continue}
     if(!pick||t+c.total>closeEff+10){
-      if(parks.length>1&&pi===0){t=Math.max(t,SWITCH_AT);continue}
+      // Nothing left worth doing in the first park (all seen, repeats with long lines): cross now instead of idling.
+      if(parks.length>1&&pi===0){if(!pick)noMore=true;else t=Math.max(t,SWITCH_AT);continue}
       break;
     }
     used.add(pick.c);
@@ -939,6 +942,9 @@ function scheduleRun(k,opts,wx){
   }
   // Last day without a closing show (Epic): leave at the end of the last ride.
   if(isLast&&!F&&!out.some(o=>o.short==="Vuelta")){
+    // Done early on the last day: stroll the kids' favorite area and have lunch before driving home.
+    if(!day.party&&t<lunchAt-30){out.push({type:"break",start:t,end:lunchAt,label:`Tiempo libre: ${FREE_WALK[freeIn]||"pasear"}. O repetir lo que más les gustó si la fila está corta (pestaña 5)`,short:"Tiempo libre"});t=lunchAt}
+    if(!day.party&&!lunch&&t>=lunchAt-30&&t<15*60){doLunch()}
     out.push({type:"break",start:t,end:t+50,label:(S.plan.hotel==="dock"||S.plan.hotel==="terra")?"Salida del parque: bus al hotel a buscar el auto":"Salida del parque al estacionamiento",short:"Salida al auto"});
     out.push({type:"break",start:t+50,end:t+60,label:"Vuelta a casa",short:"Vuelta"});
   }
