@@ -472,15 +472,15 @@ const UNI_EST={EPU:[600,1260],IOA:[540,1260],USF:[540,1260]};
 // así que desde el 23 el desfile y los fuegos navideños pasan al horario normal.
 // Universal holiday shows, every day Nov 14 2026 – Jan 3 2027. Times from past seasons; 2026 times not published.
 const UNI_SHOWS=[
-  {p:"USF",start:17*60+30,d:30,lead:25,label:"Desfile de Navidad de Universal (globos de Macy's)",short:"Desfile Macy's"},
-  {p:"IOA",start:17*60+50,d:10,lead:10,label:"The Magic of Christmas at Hogwarts Castle (proyección, se repite cada ≈ 20 min hasta el cierre)",short:"Castillo navideño"}
+  {p:"USF",start:17*60+30,d:30,lead:25,g:[28.475881,-81.469363],spot:"New York, cerca del árbol",label:"Desfile de Navidad de Universal (globos de Macy's)",short:"Desfile Macy's"},
+  {p:"IOA",start:17*60+50,d:10,lead:10,g:[28.472265,-81.473519],spot:"frente al castillo, en Hogsmeade",label:"The Magic of Christmas at Hogwarts Castle (proyección, se repite cada ≈ 20 min hasta el cierre)",short:"Castillo navideño"}
 ];
 // Mickey's Very Merry Christmas Party night (16:00 entry, 19:00–24:00). 2026 showtimes not published; 2025 pattern.
 const PARTY_SHOWS=[
   // 2025 party times (BlogMickey, Nov 2025): parades 20:30 and 23:00, fireworks 22:00. Ride during the first parade and
   // watch the second, which is emptier (WDWinfo); watch it early on its route, in Frontierland or Liberty Square.
-  {p:"MK",start:22*60,d:15,lead:30,label:"Fuegos de Navidad (Minnie's Wonderful Christmastime), desde el hub o Main Street",short:"Fuegos de Navidad"},
-  {p:"MK",start:23*60,d:20,lead:15,label:"Desfile de Navidad (Mickey's Once Upon a Christmastime), segunda función: verlo en Frontierland o Liberty Square, donde arranca",short:"Desfile de Navidad"}
+  {p:"MK",start:22*60,d:15,lead:30,g:[28.4183,-81.5812],spot:"el hub, frente al castillo",label:"Fuegos de Navidad (Minnie's Wonderful Christmastime), desde el hub o Main Street",short:"Fuegos de Navidad"},
+  {p:"MK",start:23*60,d:20,lead:15,g:[28.4197,-81.5836],spot:"Liberty Square, al principio del recorrido",label:"Desfile de Navidad (Mickey's Once Upon a Christmastime), segunda función: verlo en Frontierland o Liberty Square, donde arranca",short:"Desfile de Navidad"}
 ];
 const SHOWS={
   "19":[{p:"MK",start:20*60,d:20,lead:30,label:"Fuegos: Happily Ever After",short:"Fuegos"}],
@@ -576,7 +576,7 @@ const KID_ALT={
   "EPU-06":"Constellation Carousel y las fuentes de Celestial Park",
   "EPU-08":"Curse of the Werewolf (40 in), en Dark Universe, o el carrusel de Celestial Park",
   "EPU-11":"Fyre Drill y el campamento vikingo de Isle of Berk",
-  "MK-01":"Buzz Lightyear, PeopleMover o Tomorrowland Speedway, en Tomorrowland",
+  "MK-01":"en la fiesta, ver a Santa Claus en Storybook Circus (Fantasyland, ≈ 5′ a pie; solo desde las 19:00). Si no, Buzz Lightyear o PeopleMover, en Tomorrowland",
   "MK-04":"Buzz Lightyear o Monsters, Inc. Laugh Floor, en Tomorrowland"
 };
 // Season-only shows and theming (Nov 14 2026 – Jan 3 2027 at Universal; MK after the last party or at the party).
@@ -599,9 +599,16 @@ const XMAS_RIDE={
 };
 // Christmas-only things get the same push as the kids' favorites ("lo navideño o especial tratemos de hacerlo", 20 oct 2026).
 const XMAS_SHOW=/Grinchmas|Most Merriest|Frozen Holiday|Santa Claus|Christmas|Navidad/i;
+const XMAS_OPTIONAL=new Set(["MK-18","MK-16","MK-S6"]);
+// Party night order (agreed 20 oct 2026): Tiana's gets them wet, so before the party while it is warm and nothing
+// Christmas exists yet; TRON after 19:00, when its line halves (Thrill Data) and the girl can see Santa meanwhile.
+const PARTY_BEFORE19=new Set(["MK-06"]),PARTY_AFTER19=new Set(["MK-01"]);
 const isXmas=r=>!!XMAS_RIDE[r.c]||(!!r.show&&XMAS_SHOW.test(r.n));
 const rankOf=r=>{if(r.show)return [5,8,10][r.show.rank-1]||12+r.show.rank;const i=(RANK[r.p]||[]).indexOf(r.c);return i<0?99:i+1};
 function defaultPick(r){
+  // Santa is the girl's stop while the others ride TRON (KID_ALT); teacups, Laugh Floor and Frozen only if there is time.
+  if(r.c==="MK-S9") return "no";
+  if(XMAS_OPTIONAL.has(r.c)) return "maybe";
   if(isXmas(r)&&!(r.show&&r.show.kid6==="no")) return "must";
   if(r.show) return r.show.rank===1&&r.show.kid6!=="no"?"must":r.show.rank<=3?"maybe":"no";
   if(r.t.includes("transfer")) return "no";
@@ -756,7 +763,7 @@ function epaUsable(k){
 // Opening order the sources agree on (Cerebro): Islands Hagrid's then VelociCoaster during early admission
 // (Universal Family Vacations, Theme Park Shark); Epic the Ministry first (Park Prodigy, Orlando Informer);
 // Studios Gringotts, which the 6-year-old can ride (Universal Family Vacations, Orlando Theme Parks).
-const ROPE={IOA:["IOA-01","IOA-05"],EPU:["EPU-01"],USF:["USF-01"]};
+const ROPE={IOA:["IOA-01","IOA-05"],EPU:["EPU-01"],USF:["USF-01"],MK:["MK-06"]};
 // Hagrid's is the kids' Potter favorite and early admission is the only short line, so it opens a second Islands day too.
 const ROPE_AGAIN=new Set(["IOA-01"]);const REPEAT_OK=new Set(["IOA-05"]);
 // Rides already planned on an earlier day: they still fit as repeats, but new rides go first.
@@ -897,7 +904,7 @@ function scheduleRun(k,opts,wx){
     if(!dinner&&!day.party&&t>=18*60+30&&closeEff-t>20){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;dinner=true;continue}
     const cur=parks[pi];
     const inEpa=epaOn&&t<open;
-    let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||EPA_RIDES.has(r.c))&&!(day.party&&t<19*60&&(r.show?.party||/solo durante la fiesta/.test(XMAS_RIDE[r.c]||""))));
+    let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||EPA_RIDES.has(r.c))&&!(day.party&&t<19*60&&(r.show?.party||PARTY_AFTER19.has(r.c)||/solo durante la fiesta/.test(XMAS_RIDE[r.c]||"")))&&!(day.party&&t>=19*60&&PARTY_BEFORE19.has(r.c)));
     if(inEpa&&!cands.length){t=open;continue}
     const wantSwitch=parks.length>1&&pi===0&&(t>=SWITCH_AT||!cands.length||noMore);
     if(wantSwitch){
@@ -908,7 +915,11 @@ function scheduleRun(k,opts,wx){
       const other=RIDES.find(r=>r.p===parks[1]&&r.t.includes("transfer"));pos=other?other.c:null;if(curLand)leftLands.add(curLand);curLand=null;continue;
     }
     const sh=shows[si];
-    const shCut=sh&&parks[pi]===sh.p?sh.start-sh.lead:Infinity;
+    // Walk to the viewing spot counts too: rides end early enough to get there and still arrive `lead` minutes before.
+    const shWalk=sh&&parks[pi]===sh.p&&sh.g?walk(pos,{c:"spot",p:sh.p,g:sh.g}):0;
+    const shCut=sh&&parks[pi]===sh.p?sh.start-sh.lead-shWalk:Infinity;
+    // Something right next to the viewing spot (the castle show before the fireworks) may run into the lead time.
+    const nearSpot=(r,cc)=>!!(r&&r.g&&sh&&sh.g&&parks[pi]===sh.p&&walk(r.c,{c:"spot",p:sh.p,g:sh.g})<=5&&t+cc.total+5<=sh.start-15);
     // Score: walking counts double, since crossing the park back and forth is the costly mistake.
     let pick=null,c=null;
     if(!manual&&ctx.first&&t<start+90){const rc=(ROPE[cur]||[]).find(cd=>cands.some(r=>r.c===cd)&&(!seen.has(cd)||(inEpa&&ROPE_AGAIN.has(cd)&&(seen.times.get(cd)||0)<2)));if(rc){pick=byCode[rc];c=cost(pick,t)}}
@@ -918,10 +929,15 @@ function scheduleRun(k,opts,wx){
     }
     if(!pick){
       let best=-1;
-      for(const r of cands){const cc=cost(r,t);if(!isFinite(cc.total)||skipRepeat(r,cc.w)||(r.show&&cc.w>90))continue;if(t+cc.total>closeEff+10||t+cc.total>shCut)continue;const sc=prioW(r)*Math.pow(1+(12-Math.min(rankOf(r),12))/12,wx)*(typW(r,ctx)-cc.w+15)/(cc.total+cc.wk+landPen(r)+5);if(sc>best){best=sc;pick=r;c=cc}}
+      for(const r of cands){const cc=cost(r,t);if(!isFinite(cc.total)||skipRepeat(r,cc.w)||(r.show&&cc.w>90))continue;if(t+cc.total>closeEff+10||(t+cc.total>shCut&&!nearSpot(r,cc)))continue;const sc=prioW(r)*Math.pow(1+(12-Math.min(rankOf(r),12))/12,wx)*(typW(r,ctx)-cc.w+15)/(cc.total+cc.wk+landPen(r)+5);if(sc>best){best=sc;pick=r;c=cc}}
     }
-    if(t+(pick?c.total:0)>shCut||(!pick&&shCut<Infinity)){
-      out.push({type:"break",show:true,start:t,end:sh.start+sh.d,label:`${sh.label}, ${hm(sh.start)}. Ubicarse ${sh.lead} min antes`,short:sh.short});
+    if((t+(pick?c.total:0)>shCut&&!(pick&&nearSpot(pick,c)))||(!pick&&shCut<Infinity)){
+      // A show on a stage in front of the spot while they wait (the castle show before the fireworks) is seen from there.
+      const also=sh.g?pool.filter(r=>r.show&&r.show.times&&r.g&&!used.has(r.c)&&hav(r.g,sh.g)<200).map(r=>[r,r.show.times.find(x=>x>=t+shWalk&&x+r.d<=sh.start)]).filter(([,x])=>x!=null):[];
+      for(const [r] of also) used.add(r.c);
+      out.push({type:"break",show:true,start:t,end:sh.start+sh.d,label:`${sh.label}, ${hm(sh.start)}. ${shWalk?`Caminan ${shWalk}′ hasta ${sh.spot||"el lugar"} y se ubican`:"Ubicarse"} ${sh.lead} min antes (estimado)${also.map(([r,x])=>`. Mientras esperan, a las ${hm(x)} ven desde ahí ${r.n}`).join("")}`,short:sh.short,also:also.map(([r])=>r.c)});
+      // Next stop starts from the viewing spot, not from the last ride.
+      if(sh.g){const sc="SPOT-"+sh.short;byCode[sc]=byCode[sc]||{c:sc,p:sh.p,g:sh.g,l:sh.spot||""};pos=sc}
       t=sh.start+sh.d;si++;
       if(isLast&&si===shows.length){
         out.push({type:"break",start:t,end:t+50,label:parks.includes("MK")?"Salida del parque: tranvía o ferry al estacionamiento, con toda la gente del show":(S.plan.hotel==="dock"||S.plan.hotel==="terra")?"Salida del parque: bus al hotel a buscar el auto":"Salida del parque: caminar por CityWalk hasta el estacionamiento",short:"Salida al auto"});
