@@ -682,7 +682,7 @@ function dayCrowd(k){
 }
 // A show's "wait" is the time until it starts. A show the family marked imperdible themselves is worth up to 30 idle
 // minutes, so it is not dropped for rides with shorter lines (suggested picks keep the plain value).
-function typW(r,ctx){if(r.show)return r.show.lead+(S.picks[r.c]?.p==="must"&&!ctx.seen?.has(r.c)?30:isXmas(r)&&!ctx.seen?.has(r.c)?15:0);const D=BRAIN.waits[r.c];return D?(D[ctx.wk]||D.d||D.y||r.w):r.w}
+function typW(r,ctx){if(r.show)return r.show.lead+(pickOf(r)==="must"&&!ctx.seen?.has(r.c)?30:0);const D=BRAIN.waits[r.c];return D?(D[ctx.wk]||D.d||D.y||r.w):r.w}
 function waitAt(r,t,open,close,ctx){
   if(r.show){if(r.show.party&&!ctx.party)return 9999;if(!r.show.times)return r.show.queue; // walk-in: a short line
     const s=r.show.times.find(x=>x-t>=r.show.lead);return s==null?9999:s-t}
@@ -743,12 +743,18 @@ const BUY=[
   {lands:["Super Nintendo World"],text:"Comprar la Power-Up Band (tienda 1-UP Factory, en Super Nintendo World): con ella juegan los desafíos de las llaves y suman puntos, sin fila"}
 ];
 function buyAt(){const m={};for(const b of BUY){let done=false;for(const d of activeDays()){if(done)break;for(const o of schedule(d.k).items)if(o.type==="ride"&&!o.transfer&&b.lands.includes(o.ride.l)){m[d.k+"|"+o.ride.c]=b.text;done=true;break}}}return m}
+// Who goes each day (20 oct 2026): the Florida family has a 3-day Park-to-Park resident ticket (same hotel) plus an
+// optional extra Epic day; the other family has 5 days. The imperdibles all land on the shared days (17–20).
+const CORE_DAYS=new Set(["17","18","19","20"]);
+const WHO={"21":"Va la familia con 5 días. La de Florida (residentes, 3 días) solo si suma el Epic opcional; si no, día libre: pileta del hotel o CityWalk",
+  "22":"Va la familia con 5 días. La de Florida ya usó sus 3 días: CityWalk (no necesita entrada) hasta que salen juntos en el auto"};
+const whoOf=k=>WHO[k]||"Van las dos familias";
 // Rides left out of the plan but worth doing if their line is short when they walk by (asked 20 oct 2026).
 const IF_SHORT=[
   {code:"MK-16",at:"MK-04",max:15,text:"Monsters, Inc. Laugh Floor está al lado, en Tomorrowland, con su show navideño exclusivo de la fiesta (≈ 15′, bajo techo; ideal para la de 6). Si la app marca 15′ o menos, entren al salir de Space Mountain. Ojo: así llegan a los fuegos con ≈ 20′ de anticipación en vez de 30 y se pierden el show del castillo de las 21:25. Si no, sigan con el plan"},
   {code:"EPU-09",max:30,text:"Curse of the Werewolf está al lado, en Dark Universe. Si la app marca 30′ o menos, háganla: dura 4′ y la de 6 sube (pide 40\", 102 cm) con un adulto. Si no, sigan con el plan"}
 ];
-function shortAt(){const m={};for(const x of IF_SHORT){const r=byCode[x.code];if(!r)continue;const ad=activeDays();if(ad.some(d=>schedule(d.k).items.some(o=>o.ride&&o.ride.c===x.code)))continue;
+function shortAt(){const m={};for(const x of IF_SHORT){const r=byCode[x.code];if(!r)continue;const ad=activeDays();if(ad.some(d=>CORE_DAYS.has(d.k)&&schedule(d.k).items.some(o=>o.ride&&o.ride.c===x.code)))continue;
   let done=false;for(const d of ad){if(done)break;for(const o of schedule(d.k).items)if(o.type==="ride"&&!o.transfer&&o.ride.p===r.p&&(x.at?o.ride.c===x.at:o.ride.l===r.l)){m[d.k+"|"+o.ride.c]=x.text;done=true;break}}}return m}
 const isFan=r=>r.t.includes("hp")||r.t.includes("nin")||r.c==="USF-05"||(!!r.show&&FAN_SHOW.test(r.n));
 // Single rider lines the official Universal app publishes (ThemeParks.wiki feed, 19 oct 2026). Universal's Rider's Guide
@@ -1173,7 +1179,7 @@ function renderStops(){
   const sc=schedule(k);
   // Evaluate mode (Touring Plans): with a hand-made order, say what the optimized order would save.
   let ev="";if(S.plan.order[k]){const o=schedule(k,{ignoreOrder:true});const cost=x=>x.items.filter(i=>i.type==="ride").reduce((a,i)=>a+i.wait+i.walk,0);const n=x=>x.items.filter(i=>i.type==="ride"&&!i.transfer).length;const dm=cost(sc)-cost(o),dn=n(o)-n(sc);if(dm>0||dn>0)ev=`<span class="src">El orden optimizado ${dn>0?`suma ${dn} atracción${dn>1?"es":""}`:""}${dn>0&&dm>0?" y ":""}${dm>0?`ahorra ${dm} min de fila y caminata`:""}.</span>`}
-  $("#stops-title").innerHTML=`Paradas del ${d.label.toLowerCase()} · ${day.parks.map(lb).join(" ")} ${S.plan.order[k]?`<button class="btn sm quiet" data-resetorder="${k}">Volver al orden optimizado</button> ${ev}`:'<span class="src">orden optimizado por el planificador</span>'}`;
+  $("#stops-title").innerHTML=`Paradas del ${d.label.toLowerCase()} · ${day.parks.map(lb).join(" ")} <span class="src">${esc(whoOf(k))}</span> ${S.plan.order[k]?`<button class="btn sm quiet" data-resetorder="${k}">Volver al orden optimizado</button> ${ev}`:'<span class="src">orden optimizado por el planificador</span>'}`;
   const rides=sc.items.filter(i=>i.type==="ride"&&!i.transfer);
   let html=`<thead><tr><th>Sale</th><th>Código</th><th>Atracción</th><th class="hide-sm">Peque (6)</th><th class="num hide-sm">Caminata</th><th class="num">Fila</th><th class="num hide-sm">Dura</th><th class="num hide-sm">Termina</th><th>Orden</th></tr></thead><tbody>`;
   const rest=restPlan(k,sc);const buy=buyAt();const short=shortAt();
@@ -1229,7 +1235,7 @@ function renderParques(){
   const why={"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Magic Kingdom cierra a las 18:00 para el resto. Es el único día de Disney: tienen solo la entrada de la fiesta.","18":"Mañana libre después de la fiesta: duermen 8 h 30 y llegan a Studios ≈ 11:40. Studios nunca tiene entrada anticipada, así que arrancar tarde ahí no les hace perder nada. Desfile de Macy's a la tarde.","19":"Epic con entrada anticipada (9:00). Es el día más tranquilo de Epic que les queda: Thrill Data pronostica 66 min de fila promedio, contra 68 a 71 del 20 al 22.","20":"Islands todo el día, con entrada anticipada (8:00) y de noche la proyección navideña del castillo de Hogwarts, que solo se ve en Islands al oscurecer.","21":"Epic otra vez, solo lo mejor: Ministerio y Mario Kart con la entrada anticipada (las filas más cortas del día) y la tarde libre. Pronóstico de Thrill Data: 71 min de fila promedio.","22":"Check-out. Islands con entrada anticipada, Hogwarts Express a Studios y vuelta a casa en auto."};
   const r=ROUTES.G,cur=routeMatch();
   $("#routes").innerHTML=`<article class="route${cur?" cur":""}"><header><b>Plan</b><span>${r.title}</span></header>
-    <ol>${Object.entries(r.days).map(([k,ps])=>{const d=DAYS.find(x=>x.k===k);return `<li class="${ps[0]}"><span class="d">${d.dow} ${k}</span><span class="s"></span><span class="p"><span>${ps.map(lb).join(" ")} ${ps.map(p=>PARKS[p].name).join(" → ")}</span><span class="why">${esc(why[k]||"")}</span></span></li>`}).join("")}</ol>
+    <ol>${Object.entries(r.days).map(([k,ps])=>{const d=DAYS.find(x=>x.k===k);return `<li class="${ps[0]}"><span class="d">${d.dow} ${k}</span><span class="s"></span><span class="p"><span>${ps.map(lb).join(" ")} ${ps.map(p=>PARKS[p].name).join(" → ")}</span><span class="why">${esc(why[k]||"")} <b>${esc(whoOf(k))}.</b></span></span></li>`}).join("")}</ol>
     <div class="foot"><span>Universal publica la entrada anticipada solo en Islands y Epic, todos los días (calendario oficial hasta el 30 de noviembre; diciembre todavía no salió). Studios no la tiene nunca. Por eso el día de arranque tardío es en Studios, y los otros 4 arrancan en Islands o en Epic.</span>${cur?'<span class="mark rec">'+g("check")+"Plan actual</span>":`<button class="btn" data-route="G">Volver a este plan</button>`}</div></article>`;
   const C=BRAIN.crowd,dd=["15","16","17","18","19","20","21","22","23","24"];
   const F=BRAIN.forecast,fd=["17","18","19","20","21","22","23"];
@@ -1372,6 +1378,7 @@ const TODO=[
   ["t12","Cerrar los dos paquetes de Dockside","Cotizaciones: otra familia US$ 2.783,15 y familia de Florida US$ 2.793,80, del 17 al 22, con impuestos. Pedir habitaciones cerca y confirmar que siga la promo de 25%."],
   ["t17","Decidir si hacen el desayuno del Grinch (Islands)","Reserva previa, se agota rápido. 2025: US$ 58.99 adulto y 32.99 de 3 a 9 años + impuestos. Universal todavía no publicó 2026 (en 2025 abrió el 8 de octubre): revisar la web de Universal ya. Puede chocar con la entrada anticipada; elegir el día (20, 21 o 22)."],
   ["t16","Preguntarle a la agencia por el desayuno del Leaky Cauldron con entrada a las 9:00","Si Studios abre a las 10:00 ese día, con el voucher del desayuno los dejarían pasar a Diagon Alley a las 9:00 (blog Favorite Grampy, oct 2026; no lo confirma Universal). Se compra por agente o en el Ticket Center del hotel, ≈ US$ 20 adulto y 14 menor. Falta confirmar que siga en diciembre y elegir el día."],
+  ["t18","Familia de Florida: confirmar la entrada de residente y el Epic opcional","Entrada de residente de 3 días Park-to-Park, mismo hotel (Dockside, con entrada anticipada). Confirmar que incluye Epic y cuánto cuesta sumar un día más de Epic para el lunes 21. El plan pone todos los imperdibles entre el 17 y el 20, los días que van las dos familias."],
   ["t15","Confirmar con la agencia los 2 días de Epic (sábado 19 y lunes 21)","La agencia ya dijo que la entrada del paquete permite repetir Epic: que lo confirmen para esas dos fechas. Si al final no quieren volver, cambien el parque del lunes en el Horario y el día se rearma solo."],
   ["t14","Cancelar el Airbnb","Se puede cancelar sin costo. Hacerlo cuando los paquetes estén confirmados."],
   ["t5","Medir a la de 6 años con zapatillas","Si llega a 122 cm sube a Hagrid's, Forbidden Journey, TRON y Stardust Racers."],
