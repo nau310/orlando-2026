@@ -774,7 +774,7 @@ const SWITCH_AT=12*60+30;
 const isLastDay=k=>activeDays().slice(-1)[0]?.k===k;
 // Whether a day really gets early admission: its first park has it and the night before leaves time to sleep and get there.
 function epaUsable(k){
-  const p=S.plan.days[k].parks[0];return !!S.plan.epa&&(p==="IOA"||p==="EPU");
+  const p=S.plan.days[k].parks[0];return !!S.plan.epa&&!S.plan.days[k].late&&(p==="IOA"||p==="EPU");
 }
 // Opening order the sources agree on (Cerebro): Islands Hagrid's then VelociCoaster during early admission
 // (Universal Family Vacations, Theme Park Shark); Epic the Ministry first (Park Prodigy, Orlando Informer);
@@ -840,7 +840,8 @@ function scheduleRun(k,opts,wx){
   const parks=day.parks;
   const [open,close]=dayHours(k);
   const uni=parks.some(p=>PARKS[p].uni);
-  const epa=S.plan.epa&&(parks[0]==="IOA"||parks[0]==="EPU");
+  // day.late: they skip early admission that day to sleep in (e.g. Epic the morning after the party).
+  const epa=S.plan.epa&&!day.late&&(parks[0]==="IOA"||parks[0]==="EPU");
   const express=opts.express!==undefined?opts.express:day.express;
   let ll=null;
   // A long-line ride that opens early is left for the trip's early-admission day in that park, as the sources advise
