@@ -515,16 +515,16 @@ const byCode=Object.fromEntries(RIDES.map(r=>[r.c,r]));
 const byId=Object.fromEntries(RIDES.map(r=>[r.id,r]));
 
 // ───────────────────────── state ─────────────────────────
-const PLAN_V=3;
+const PLAN_V=4;
 const defaultPlan=()=>({
   v:PLAN_V, route:"G",
-  days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.G.days[d.k],parks:ROUTES.G.days[d.k]||["IOA"],hours:null,express:false,party:ROUTES.G.party===d.k}])),
+  days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.G.days[d.k],parks:ROUTES.G.days[d.k]||["IOA"],hours:null,express:false,party:ROUTES.G.party===d.k,trainIn:d.k==="18"}])),
   kidCm:120, epa:true, single:true, meals:"quick",
   fam:{fl:{a:4,k:0},ot:{a:3,k:1}},
   order:{}, xprice:{uni:null,ll:null}, hotel:"dock"
 });
 // v3 (20 oct 2026): second Epic day on Monday 21. Older saved plans keep their settings and just get that day moved.
-const normPlan=p=>{const d=defaultPlan();if(!p||(p.v||0)<2)return d;if((p.v||0)<3&&p.days){p={...p,v:PLAN_V,days:{...p.days,"21":{...(p.days["21"]||d.days["21"]),parks:["EPU"]}}}}return {...d,...p,days:{...d.days,...(p&&p.days)}}};
+const normPlan=p=>{const d=defaultPlan();if(!p||(p.v||0)<2)return d;if((p.v||0)<3&&p.days){p={...p,days:{...p.days,"21":{...(p.days["21"]||d.days["21"]),parks:["EPU"]}}}}if((p.v||0)<4&&p.days){p={...p,v:PLAN_V,days:{...p.days,"18":{...(p.days["18"]||d.days["18"]),trainIn:true}}}}return {...d,...p,days:{...d.days,...(p&&p.days)}}};
 const S={plan:defaultPlan(),picks:{},todo:{},done:{},view:"horario",day:"21",sel:null,filters:{park:"all",hp:false,nin:false,kid:false,xmas:false},live:{},liveOk:null,ack:{}};
 let db=null, mode="local";
 
@@ -879,7 +879,9 @@ function scheduleRun(k,opts,wx){
   let t=start,pos=null,pi=0,lunch=open>=13*60,snack=lunchAt>=14*60,dinner=false;
   const quick=S.plan.meals!=="sit";
   // They stay until the park closes; whoever is tired goes back to the hotel on their own.
-  const closeEff=close;
+  // day.endTrain (a Studios day): stop riding ≈ 90 min before closing, take the Hogwarts Express to Hogsmeade and see the
+  // Christmas castle projection, which only shows in Islands after dark; same exit to CityWalk.
+  const closeEff=day.endTrain&&parks.length===1&&parks[0]==="USF"?close-90:close;
   const doLunch=()=>{
     const m=quick?25:60;
     out.push({type:"break",start:t,end:t+m,label:quick?"Almuerzo rápido: comida propia o al paso (también se come en la fila)":"Almuerzo sentados",short:quick?"Almuerzo rápido":"Almuerzo"});t+=m;lunch=true;
@@ -888,6 +890,14 @@ function scheduleRun(k,opts,wx){
   // Re-plan from now (Lines-style): start at the given time and place, skip what is done, use live waits.
   const F=opts.from;
   if(F){out.length=0;t=F.t;pos=F.pos||null;pi=F.pi||0;lunch=lunch||t>=14*60;snack=true;dinner=t>=20*60;ctx.first=false;for(const c of F.done)used.add(c)}
+  // day.trainIn (a Studios day): enter through Islands, walk to Hogsmeade and ride the Hogwarts Express to King's Cross,
+  // so both families ride it once on a shared day (agreed 21 oct 2026); around midday its line is short.
+  if(day.trainIn&&!F&&parks.length===1&&parks[0]==="USF"){
+    const a=RIDES.find(r=>r.p==="IOA"&&r.t.includes("transfer")),b=RIDES.find(r=>r.p==="USF"&&r.t.includes("transfer"));
+    if(a&&b){const wa=walk(null,a),qa=waitAt(a,t+wa,open,close,ctx);
+      const ar=out.find(o=>o.type==="arrive");if(ar)ar.label="Llegada por la entrada de Islands (las dos familias tienen Park-to-Park): caminan hasta Hogsmeade y toman el Hogwarts Express a Studios";
+      out.push({type:"ride",ride:a,start:t,walk:wa,wait:qa,rideStart:t+wa+qa,end:t+wa+qa+a.d,transfer:true,trainIn:true});t+=wa+qa+a.d;pos=b.c}
+  }
   const manual=opts.forceOrder||(!opts.ignoreOrder&&S.plan.order[k])||null;
   const seen=seenBefore(k);ctx.seen=seen;
   const prioW=r=>(seen.has(r.c)?.5:pickOf(r)==="must"?4:1)*(isFan(r)||isXmas(r)?1.5:1);
@@ -915,7 +925,7 @@ function scheduleRun(k,opts,wx){
   // Hubs (Celestial Park, Hollywood) are crossed anyway, so going back there is free.
   let curLand=null;const leftLands=new Set();const HUBS=new Set(["Celestial Park","Hollywood","Production Central"]);
   const landPen=r=>(curLand&&r.l!==curLand?5:0)+(leftLands.has(r.l)&&!HUBS.has(r.l)?25:0);
-  let si=0,noMore=false;
+  let si=0,noMore=false,loopDone=false;
   let guard=0;
   while(guard++<80){
     if(!lunch&&t>=lunchAt){doLunch();continue}
@@ -924,6 +934,19 @@ function scheduleRun(k,opts,wx){
     if(!dinner&&!day.party&&t>=18*60+30&&closeEff-t>20){const m=quick?25:45;out.push({type:"break",start:t,end:t+m,label:quick?"Cena rápida al paso":"Cena"});t+=m;dinner=true;continue}
     const cur=parks[pi];
     const inEpa=epaOn&&t<open;
+    // day.trainLoop: a round trip on the Hogwarts Express from a one-park day (both stories; needs Park-to-Park), right
+    // after the opening wave, when its lines are shortest (Thrill Data: 10–15 min until noon, 40–90 in the afternoon).
+    if(day.trainLoop&&!loopDone&&!F&&parks.length===1&&(cur==="IOA"||cur==="USF")&&!inEpa&&t>=open+20){
+      const a=RIDES.find(r=>r.p===cur&&r.t.includes("transfer")),b=RIDES.find(r=>r.p!==cur&&r.t.includes("transfer")&&(r.p==="IOA"||r.p==="USF"));
+      const wa=walk(pos,a),qa=waitAt(a,t+wa,open,close,ctx);
+      out.push({type:"ride",ride:a,start:t,walk:wa,wait:qa,rideStart:t+wa+qa,end:t+wa+qa+a.d,transfer:true,loop:true});t+=wa+qa+a.d;
+      // Not straight back: a short visit to the other side's Wizarding World (asked 21 oct 2026: "ir y volver al toque no da").
+      const visit=cur==="IOA"?{m:45,label:"Diagon Alley, al lado de King's Cross: el dragón de Gringotts que tira fuego, Knockturn Alley, cerveza de manteca y Ollivanders si la fila es corta",short:"Diagon Alley"}:{m:45,label:"Hogsmeade: el castillo, cerveza de manteca y Ollivanders si la fila es corta",short:"Hogsmeade"};
+      out.push({type:"break",start:t,end:t+visit.m,label:visit.label,short:visit.short});t+=visit.m;
+      const wb=5,qb=waitAt(b,t+wb,open,close,ctx); // walk back to the other station's line
+      out.push({type:"ride",ride:b,start:t,walk:wb,wait:qb,rideStart:t+wb+qb,end:t+wb+qb+b.d,transfer:true,back:true,loop:true});t+=wb+qb+b.d;
+      pos=a.c;loopDone=true;if(curLand)leftLands.add(curLand);curLand=null;continue;
+    }
     let cands=pool.filter(r=>r.p===cur&&!used.has(r.c)&&(!inEpa||EPA_RIDES.has(r.c))&&!(day.party&&t<19*60&&(r.show?.party||PARTY_AFTER19.has(r.c)||/solo durante la fiesta/.test(XMAS_RIDE[r.c]||"")))&&!(day.party&&t>=19*60&&PARTY_BEFORE19.has(r.c)));
     if(inEpa&&!cands.length){t=open;continue}
     const wantSwitch=parks.length>1&&pi===0&&(t>=SWITCH_AT||!cands.length||noMore);
@@ -990,10 +1013,11 @@ function scheduleRun(k,opts,wx){
   let freeIn=parks[pi];
   const backTrain=RIDES.find(x=>x.p==="USF"&&x.t.includes("transfer"));
   const rodeBack=activeDays().some(d=>+d.k<+k&&schedule(d.k).items.some(o=>o.ride===backTrain));
-  if(!F&&!day.party&&parks[1]==="USF"&&pi===1&&backTrain&&!rodeBack&&close-t>=45){
+  if(!F&&!day.party&&((parks[1]==="USF"&&pi===1&&!rodeBack)||(day.endTrain&&parks.length===1&&parks[0]==="USF"))&&backTrain&&close-t>=45){
     const wk=walk(pos,backTrain),w=waitAt(backTrain,t+wk,open,close,ctx);
     out.push({type:"ride",ride:backTrain,start:t,walk:wk,wait:w,rideStart:t+wk+w,end:t+wk+w+backTrain.d,transfer:true,back:true});
     t+=wk+w+backTrain.d;pos=RIDES.find(x=>x.p==="IOA"&&x.t.includes("transfer"))?.c||null;freeIn="IOA";
+    if(day.endTrain&&parks.length===1){const cs=UNI_SHOWS.find(x=>x.p==="IOA");if(cs&&t+5<close){out.push({type:"break",show:true,start:t,end:t+20,label:"Proyección navideña del castillo de Hogwarts (se repite cada ≈ 20 min hasta el cierre): caminan 3′ desde la estación y la ven desde Hogsmeade. Después salen a CityWalk",short:"Castillo navideño"});t+=20}}
   }
   // Everything planned is done before closing: the rest of the day is free (nothing worth repeating has a short line).
   if(!isLast&&!F&&!day.party&&close-t>=60){
@@ -1242,7 +1266,7 @@ function renderParques(){
   h+=`</tbody>`;
   $("#crowd").innerHTML=h;
   // The booked plan, day by day, with why each park goes where it goes
-  const why={"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Magic Kingdom cierra a las 18:00 para el resto. Es el único día de Disney: tienen solo la entrada de la fiesta.","18":"Mañana libre después de la fiesta: duermen 8 h 30 y llegan a Studios ≈ 11:40. Studios nunca tiene entrada anticipada, así que arrancar tarde ahí no les hace perder nada. Desfile de Macy's a la tarde.","19":"Epic con entrada anticipada (9:00). Es el día más tranquilo de Epic que les queda: Thrill Data pronostica 66 min de fila promedio, contra 68 a 71 del 20 al 22.","20":"Islands todo el día, con entrada anticipada (8:00) y de noche la proyección navideña del castillo de Hogwarts, que solo se ve en Islands al oscurecer.","21":"Epic otra vez, solo lo mejor: Ministerio y Mario Kart con la entrada anticipada (las filas más cortas del día) y la tarde libre. Pronóstico de Thrill Data: 71 min de fila promedio.","22":"Check-out. Islands con entrada anticipada, Hogwarts Express a Studios y vuelta a casa en auto."};
+  const why={"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Magic Kingdom cierra a las 18:00 para el resto. Es el único día de Disney: tienen solo la entrada de la fiesta.","18":"Mañana libre después de la fiesta: duermen 8 h 30 y llegan a Studios ≈ 11:40. Studios nunca tiene entrada anticipada, así que arrancar tarde ahí no les hace perder nada. Entran por Islands y llegan a Studios en el Hogwarts Express (el viaje en tren de las dos familias). Desfile de Macy's a la tarde.","19":"Epic con entrada anticipada (9:00). Es el día más tranquilo de Epic que les queda: Thrill Data pronostica 66 min de fila promedio, contra 68 a 71 del 20 al 22.","20":"Islands todo el día, con entrada anticipada (8:00) y de noche la proyección navideña del castillo de Hogwarts, que solo se ve en Islands al oscurecer.","21":"Epic otra vez, solo lo mejor: Ministerio y Mario Kart con la entrada anticipada (las filas más cortas del día) y la tarde libre. Pronóstico de Thrill Data: 71 min de fila promedio.","22":"Check-out. Islands con entrada anticipada, Hogwarts Express a Studios y vuelta a casa en auto."};
   const r=ROUTES.G,cur=routeMatch();
   $("#routes").innerHTML=`<article class="route${cur?" cur":""}"><header><b>Plan</b><span>${r.title}</span></header>
     <ol>${Object.entries(r.days).map(([k,ps])=>{const d=DAYS.find(x=>x.k===k);return `<li class="${ps[0]}"><span class="d">${d.dow} ${k}</span><span class="s"></span><span class="p"><span>${ps.map(lb).join(" ")} ${ps.map(p=>PARKS[p].name).join(" → ")}</span><span class="why">${esc(why[k]||"")} <b>${esc(whoOf(k))}.</b></span></span></li>`}).join("")}</ol>
