@@ -738,10 +738,11 @@ const BUY=[
 function buyAt(){const m={};for(const b of BUY){let done=false;for(const d of activeDays()){if(done)break;for(const o of schedule(d.k).items)if(o.type==="ride"&&!o.transfer&&b.lands.includes(o.ride.l)){m[d.k+"|"+o.ride.c]=b.text;done=true;break}}}return m}
 // Rides left out of the plan but worth doing if their line is short when they walk by (asked 20 oct 2026).
 const IF_SHORT=[
+  {code:"MK-16",at:"MK-04",max:15,text:"Monsters, Inc. Laugh Floor está al lado, en Tomorrowland, con su show navideño exclusivo de la fiesta (≈ 15′, bajo techo; ideal para la de 6). Si la app marca 15′ o menos, entren al salir de Space Mountain. Ojo: así llegan a los fuegos con ≈ 20′ de anticipación en vez de 30 y se pierden el show del castillo de las 21:25. Si no, sigan con el plan"},
   {code:"EPU-09",max:30,text:"Curse of the Werewolf está al lado, en Dark Universe. Si la app marca 30′ o menos, háganla: dura 4′ y la de 6 sube (pide 40\", 102 cm) con un adulto. Si no, sigan con el plan"}
 ];
 function shortAt(){const m={};for(const x of IF_SHORT){const r=byCode[x.code];if(!r)continue;const ad=activeDays();if(ad.some(d=>schedule(d.k).items.some(o=>o.ride&&o.ride.c===x.code)))continue;
-  let done=false;for(const d of ad){if(done)break;for(const o of schedule(d.k).items)if(o.type==="ride"&&!o.transfer&&o.ride.p===r.p&&o.ride.l===r.l){m[d.k+"|"+o.ride.c]=x.text;done=true;break}}}return m}
+  let done=false;for(const d of ad){if(done)break;for(const o of schedule(d.k).items)if(o.type==="ride"&&!o.transfer&&o.ride.p===r.p&&(x.at?o.ride.c===x.at:o.ride.l===r.l)){m[d.k+"|"+o.ride.c]=x.text;done=true;break}}}return m}
 const isFan=r=>r.t.includes("hp")||r.t.includes("nin")||r.c==="USF-05"||(!!r.show&&FAN_SHOW.test(r.n));
 // Single rider lines the official Universal app publishes (ThemeParks.wiki feed, 19 oct 2026). Universal's Rider's Guide
 // (effective 4 oct 2025) requires a Supervising Companion aged 14+ for anyone under 48" (122 cm), so the 6-year-old never
