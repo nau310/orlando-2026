@@ -488,10 +488,11 @@ const SHOWS={
   "23":[{p:"MK",start:15*60,d:25,lead:20,label:"Desfile de Navidad (Mickey's Once Upon a Christmastime)",short:"Desfile de Navidad"},
         {p:"MK",start:20*60+30,d:20,lead:35,label:"Fuegos de Navidad (Minnie's Wonderful Christmastime)",short:"Fuegos de Navidad"}]
 };
-// Morning logistics per lodging: minutes to the gate (vehicle + walk), safety margin, breakfast.
+// Morning logistics per lodging: minutes to the gate (vehicle + walk), safety margin, breakfast. Breakfast is light, in
+// the room, from the supermarket (21 oct 2026).
 const LODGE={
-  dock:{bf:"Desayuno en Pier 8 Market (pago)",bfMin:35,uni:{how:"Bus del hotel (pasa cada ≈ 15′): 10′ de viaje + 10′ caminando a la puerta",t:25,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
-  terra:{bf:"Desayuno en el patio de comidas del hotel (pago)",bfMin:35,uni:{how:"Bus del hotel: 20′ + 10′ a la puerta",t:30,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
+  dock:{bf:"Desayuno liviano en la habitación (compras del súper)",bfMin:10,uni:{how:"Bus del hotel (pasa cada ≈ 15′): 10′ de viaje + 10′ caminando a la puerta",t:25,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
+  terra:{bf:"Desayuno liviano en la habitación (compras del súper)",bfMin:10,uni:{how:"Bus del hotel: 20′ + 10′ a la puerta",t:30,m:10},mk:{how:"Salir en auto: 30′ + 30′ de ferry o monorriel",t:60,m:15}},
 };
 const PARTY={"17":true,"18":true,"20":true,"22":true};
 // Early Park Admission lands (Universal hotel guests). Epic list per Undercover Tourist (through Nov 30; Dec not yet published).
@@ -708,7 +709,8 @@ function waitAt(r,t,open,close,ctx){
     const U=BRAIN.uni26;
     // t is arrival at the ride, after the walk from the gate. The line builds over the next hour (Hippogriff 5 at 8:35,
     // 25 at 8:45, 35 at 9:00, 70 at 9:20), so blend from the opening value to the normal one between +30 and +90 min.
-    if(ctx.first&&t<=ctx.start+90){const wf=U&&U.first[r.c]!=null?(D[ctx.wk]||D.d||D.y)*U.first[r.c]:w*.35,fr=Math.max(0,Math.min(1,(t-ctx.start-30)/60));w=wf*(1-fr)+w*fr}
+    if(ctx.first&&OPEN_FIRST[r.c]!=null&&t<=ctx.start+OPEN_WIN) w=(D[ctx.wk]||D.d||D.y)*OPEN_FIRST[r.c];
+    else if(ctx.first&&t<=ctx.start+90){const wf=U&&U.first[r.c]!=null?(D[ctx.wk]||D.d||D.y)*U.first[r.c]:w*.35,fr=Math.max(0,Math.min(1,(t-ctx.start-30)/60));w=wf*(1-fr)+w*fr}
     // 2026 popularity vs 2025, relative to its park (Werewolf and Hippogriff up, Ministry and Stardust down).
     if(U&&U.rel[r.c]&&!ctx.party) w*=U.rel[r.c];
     if(ctx.party){
@@ -774,6 +776,9 @@ const isFan=r=>r.t.includes("hp")||r.t.includes("nin")||r.c==="USF-05"||(!!r.sho
 // timed Epic rides (Coaster101, Nov 2025); the usual rule of thumb is a third.
 const SINGLE=new Set(["USF-03","IOA-02","IOA-09","IOA-10","EPU-01","EPU-02","EPU-03"]);
 const SR_RATIO=.45;
+// Hagrid's in the first ≈ 15 min of early admission: 30–45 posted against a day of 67–81 (Thrill Data, 4 days, Oct 2026).
+const OPEN_FIRST={"IOA-01":.55},OPEN_WIN=15;
+
 // The greedy pass is myopic, so it runs with several rank weights and keeps the day that rides the best-ranked set.
 // Bedtime after a park day: last item + getting back to the hotel + getting ready for bed.
 // Two-park days cross on the Hogwarts Express around 12:30: its lines grow through the afternoon (2025 averages:
@@ -790,7 +795,9 @@ function epaUsable(k){
 // Measured 20 oct 2026 (Thrill Data, 5-min posted waits, see uni_waits_2026.json): arriving ≈ 25 min after early admission
 // opens, VelociCoaster and Hippogriff show 5 min while Hagrid's already shows 110–120 (its worst of the day). Epic:
 // the Ministry stays at 15 until ≈ 9:35 and Mario Kart at 25 until ≈ 9:40.
-const ROPE={IOA:["IOA-05","IOA-03"],EPU:["EPU-01","EPU-02"],USF:["USF-01"],MK:["MK-06"]};
+// Hagrid's goes first only when they reach it within ≈ 15 min of early admission opening (8:00–8:05 it shows 30–45 min,
+// by 8:25 already 110–120; agreed 21 oct 2026 with a light breakfast in the room).
+const ROPE={IOA:["IOA-01","IOA-05","IOA-03"],EPU:["EPU-01","EPU-02"],USF:["USF-01"],MK:["MK-06"]};
 // Hagrid's is the kids' Potter favorite and early admission is the only short line, so it opens a second Islands day too.
 const ROPE_AGAIN=new Set();const REPEAT_OK=new Set(["IOA-05"]);
 // Rides already planned on an earlier day: they still fit as repeats, but new rides go first.
@@ -980,7 +987,7 @@ function scheduleRun(k,opts,wx){
     const nearSpot=(r,cc)=>!!(r&&r.g&&sh&&sh.g&&parks[pi]===sh.p&&walk(r.c,{c:"spot",p:sh.p,g:sh.g})<=5&&t+cc.total+5<=sh.start-15);
     // Score: walking counts double, since crossing the park back and forth is the costly mistake.
     let pick=null,c=null;
-    if(!manual&&ctx.first&&t<start+90){const rc=(ROPE[cur]||[]).find(cd=>cands.some(r=>r.c===cd)&&(!seen.has(cd)||(inEpa&&ROPE_AGAIN.has(cd)&&(seen.times.get(cd)||0)<2)));if(rc){pick=byCode[rc];c=cost(pick,t)}}
+    if(!manual&&ctx.first&&t<start+90){const rc=(ROPE[cur]||[]).find(cd=>cands.some(r=>r.c===cd)&&(cd!=="IOA-01"||t+walk(pos,byCode[cd])<=ctx.start+OPEN_WIN)&&(!seen.has(cd)||(inEpa&&ROPE_AGAIN.has(cd)&&(seen.times.get(cd)||0)<2)));if(rc){pick=byCode[rc];c=cost(pick,t)}}
     if(!pick&&manual){
       const code=manual.find(cd=>cands.some(r=>r.c===cd));
       if(code){pick=byCode[code];c=cost(pick,t)}
@@ -1203,7 +1210,7 @@ function renderHorario(){
     `<p><b>Comidas</b>: ${S.plan.meals==="sit"?"almuerzo sentados de una hora, merienda y cena de 45 minutos.":"al paso: 25 minutos para almorzar y para cenar; el resto se come en las filas. Ojo: Disney deja entrar comida y bebida propia, pero Universal no (solo agua, hasta 2 L por persona, y una conservadora blanda chica): ahí conviene pedir por la app. Se pueden cambiar a «Comidas sentados» arriba."} Nadie tiene que quedarse: quien se cansa vuelve al hotel en el bus.</p>`+
     (SHOWS[S.day]&&S.plan.days[S.day].parks.includes("MK")?`<p><b>Shows de Magic Kingdom</b>: horarios estimados con el patrón de 2025 (desfile de Navidad 12:00 y 15:00, fuegos navideños 20:30 desde el día siguiente a la última fiesta). Disney publica los de 2026 en la app My Disney Experience unas semanas antes. El desfile nocturno Starlight suele pasar alrededor de las 19:00; si lo quieren ver, se pierden 2 o 3 atracciones.</p>`:"")+
     (S.plan.days[S.day].parks.some(p=>p==="USF"||p==="IOA")?`<p><b>Navidad en Universal</b> (todos los días, 14 nov al 3 ene): desfile con globos de Macy's en Studios ≈ 17:30; proyección navideña en el castillo de Hogwarts (Islands) desde que oscurece, cada ≈ 20 min hasta el cierre; Grinchmas en Seuss Landing con funciones de día. Horarios de temporadas anteriores: confirmar en la app de Universal ese día.</p>`:"")+
-    `<p><b>Mañana</b>: 8 h 30 de sueño desde que vuelven al hotel, 30 min para prepararse y desayuno en Pier 8 (Dockside). Los días con entrada anticipada se levantan desde las 6:30; el resto, no antes de las 7:00.</p>`+
+    `<p><b>Mañana</b>: 8 h 30 de sueño desde que vuelven al hotel, 30 min para prepararse y desayuno liviano en la habitación, con compras del súper (10 min). Los días con entrada anticipada se levantan desde las 6:30; el resto, no antes de las 7:00.</p>`+
     (S.plan.epa?`<p><b>Entrada anticipada</b>: una hora antes de la apertura, solo para huéspedes de hoteles de Universal. En 2026 es en Islands (Hagrid's, VelociCoaster, Forbidden Journey, Hippogriff) y en Epic (Ministry, Nintendo, Berk); Studios no tiene. Llegar 45 min antes (Touring Plans).</p>`:"");
   tt.innerHTML=head+`<div class="notes-hd">Notas</div>`+body+`<div class="notes">${noteHtml}</div>`;
   renderStops();
