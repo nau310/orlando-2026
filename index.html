@@ -52,7 +52,7 @@ svg.g{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-widt
 .dot.live{background:var(--signal)}
 
 section.view{padding-top:22px}
-section.view[hidden]{display:none}
+section.view[hidden],.btn[hidden]{display:none}
 h2{font-size:26px;line-height:1.1;margin:0 0 4px;font-weight:800;font-variation-settings:"wdth" 70;text-wrap:balance}
 h3{font-size:17px;margin:28px 0 8px;font-weight:750;font-variation-settings:"wdth" 80}
 .lede{color:var(--ink-2);max-width:72ch;margin:0 0 16px}
@@ -306,7 +306,7 @@ input.num{width:84px;border:1.5px solid var(--ink);background:var(--sheet);paddi
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <div class="seg" id="meals" role="group" aria-label="Comidas"></div>
-        <button class="btn quiet" id="reopt">Reoptimizar todos los días</button>
+        <button class="btn quiet" id="reopt" hidden>Volver al orden optimizado en todos los días</button>
       </div>
     </div>
     <div class="daytabs" id="daytabs" role="group" aria-label="Elegir día"></div>
@@ -1213,6 +1213,8 @@ function renderHorario(){
     `<p><b>Mañana</b>: 8 h 30 de sueño desde que vuelven al hotel, 30 min para prepararse y desayuno liviano en la habitación, con compras del súper (10 min). Los días con entrada anticipada se levantan desde las 6:30; el resto, no antes de las 7:00.</p>`+
     (S.plan.epa?`<p><b>Entrada anticipada</b>: una hora antes de la apertura, solo para huéspedes de hoteles de Universal. En 2026 es en Islands (Hagrid's, VelociCoaster, Forbidden Journey, Hippogriff) y en Epic (Ministry, Nintendo, Berk); Studios no tiene. Llegar 45 min antes (Touring Plans).</p>`:"");
   tt.innerHTML=head+`<div class="notes-hd">Notas</div>`+body+`<div class="notes">${noteHtml}</div>`;
+  // Only when some day has a hand-made order (Orden column); otherwise the plan is already optimized.
+  $("#reopt").hidden=!Object.values(S.plan.order||{}).some(Boolean);
   renderStops();
 }
 // Optional rest for whoever wants it: after lunch they take the hotel bus, rest ≈ 75 min and come back to meet the
