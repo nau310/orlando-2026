@@ -499,7 +499,7 @@ const PARTY={"17":true,"18":true,"20":true,"22":true};
 // Nintendo, Berk). Studios has none (Universal's EPA page, Oct 2026; Park Prodigy / BlogMickey for Epic).
 const EPA_RIDES=new Set(["IOA-01","IOA-02","IOA-03","IOA-05","EPU-01","EPU-02","EPU-03","EPU-04","EPU-10","EPU-11"]);
 const ROUTES={
-  G:{name:"G",title:"Del 17 al 22: fiesta de Navidad, mañana libre el 18 y entrada anticipada los otros 4 días",party:"17",hotel:"dock",epa:true,days:{"17":["MK"],"18":["USF"],"19":["EPU"],"20":["IOA"],"21":["IOA","USF"],"22":["IOA","USF"]}}
+  G:{name:"G",title:"Del 17 al 22: fiesta de Navidad, mañana libre el 18, Epic dos días (19 y 21) y entrada anticipada los otros 4 días",party:"17",hotel:"dock",epa:true,days:{"17":["MK"],"18":["USF"],"19":["EPU"],"20":["IOA"],"21":["EPU"],"22":["IOA","USF"]}}
 };
 
 // Shows (knowledge/shows.json) join the list as stops with fixed showtimes: the "wait" is the time until the next
@@ -515,7 +515,7 @@ const byCode=Object.fromEntries(RIDES.map(r=>[r.c,r]));
 const byId=Object.fromEntries(RIDES.map(r=>[r.id,r]));
 
 // ───────────────────────── state ─────────────────────────
-const PLAN_V=2;
+const PLAN_V=3;
 const defaultPlan=()=>({
   v:PLAN_V, route:"G",
   days:Object.fromEntries(DAYS.map(d=>[d.k,{on:!!ROUTES.G.days[d.k],parks:ROUTES.G.days[d.k]||["IOA"],hours:null,express:false,party:ROUTES.G.party===d.k}])),
@@ -523,7 +523,8 @@ const defaultPlan=()=>({
   fam:{fl:{a:4,k:0},ot:{a:3,k:1}},
   order:{}, xprice:{uni:null,ll:null}, hotel:"dock"
 });
-const normPlan=p=>{const d=defaultPlan();if(!p||(p.v||0)<PLAN_V)return d;return {...d,...p,days:{...d.days,...(p&&p.days)}}};
+// v3 (20 oct 2026): second Epic day on Monday 21. Older saved plans keep their settings and just get that day moved.
+const normPlan=p=>{const d=defaultPlan();if(!p||(p.v||0)<2)return d;if((p.v||0)<3&&p.days){p={...p,v:PLAN_V,days:{...p.days,"21":{...(p.days["21"]||d.days["21"]),parks:["EPU"]}}}}return {...d,...p,days:{...d.days,...(p&&p.days)}}};
 const S={plan:defaultPlan(),picks:{},todo:{},done:{},view:"horario",day:"21",sel:null,filters:{park:"all",hp:false,nin:false,kid:false,xmas:false},live:{},liveOk:null,ack:{}};
 let db=null, mode="local";
 
@@ -1225,7 +1226,7 @@ function renderParques(){
   h+=`</tbody>`;
   $("#crowd").innerHTML=h;
   // The booked plan, day by day, with why each park goes where it goes
-  const why={"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Magic Kingdom cierra a las 18:00 para el resto. Es el único día de Disney: tienen solo la entrada de la fiesta.","18":"Mañana libre después de la fiesta: duermen 8 h 30 y llegan a Studios ≈ 11:40. Studios nunca tiene entrada anticipada, así que arrancar tarde ahí no les hace perder nada. Desfile de Macy's a la tarde.","19":"Epic con entrada anticipada (9:00). Es el día más tranquilo de Epic que les queda: Thrill Data pronostica 66 min de fila promedio, contra 68 a 71 del 20 al 22.","20":"Islands todo el día, con entrada anticipada (8:00) y de noche la proyección navideña del castillo de Hogwarts, que solo se ve en Islands al oscurecer.","21":"Islands con entrada anticipada, Hogwarts Express y Studios a la tarde.","22":"Check-out. Islands con entrada anticipada, Studios y vuelta a casa en auto. Si Epic les encantó, el 22 puede ser Epic otra vez (se decide la noche del 19)."};
+  const why={"17":"Fiesta de Navidad de Mickey (16:00 a 24:00): desfile, fuegos y versiones navideñas. Magic Kingdom cierra a las 18:00 para el resto. Es el único día de Disney: tienen solo la entrada de la fiesta.","18":"Mañana libre después de la fiesta: duermen 8 h 30 y llegan a Studios ≈ 11:40. Studios nunca tiene entrada anticipada, así que arrancar tarde ahí no les hace perder nada. Desfile de Macy's a la tarde.","19":"Epic con entrada anticipada (9:00). Es el día más tranquilo de Epic que les queda: Thrill Data pronostica 66 min de fila promedio, contra 68 a 71 del 20 al 22.","20":"Islands todo el día, con entrada anticipada (8:00) y de noche la proyección navideña del castillo de Hogwarts, que solo se ve en Islands al oscurecer.","21":"Epic otra vez, solo lo mejor: Ministerio y Mario Kart con la entrada anticipada (las filas más cortas del día) y la tarde libre. Pronóstico de Thrill Data: 71 min de fila promedio.","22":"Check-out. Islands con entrada anticipada, Hogwarts Express a Studios y vuelta a casa en auto."};
   const r=ROUTES.G,cur=routeMatch();
   $("#routes").innerHTML=`<article class="route${cur?" cur":""}"><header><b>Plan</b><span>${r.title}</span></header>
     <ol>${Object.entries(r.days).map(([k,ps])=>{const d=DAYS.find(x=>x.k===k);return `<li class="${ps[0]}"><span class="d">${d.dow} ${k}</span><span class="s"></span><span class="p"><span>${ps.map(lb).join(" ")} ${ps.map(p=>PARKS[p].name).join(" → ")}</span><span class="why">${esc(why[k]||"")}</span></span></li>`}).join("")}</ol>
@@ -1371,7 +1372,7 @@ const TODO=[
   ["t12","Cerrar los dos paquetes de Dockside","Cotizaciones: otra familia US$ 2.783,15 y familia de Florida US$ 2.793,80, del 17 al 22, con impuestos. Pedir habitaciones cerca y confirmar que siga la promo de 25%."],
   ["t17","Decidir si hacen el desayuno del Grinch (Islands)","Reserva previa, se agota rápido. 2025: US$ 58.99 adulto y 32.99 de 3 a 9 años + impuestos. Universal todavía no publicó 2026 (en 2025 abrió el 8 de octubre): revisar la web de Universal ya. Puede chocar con la entrada anticipada; elegir el día (20, 21 o 22)."],
   ["t16","Preguntarle a la agencia por el desayuno del Leaky Cauldron con entrada a las 9:00","Si Studios abre a las 10:00 ese día, con el voucher del desayuno los dejarían pasar a Diagon Alley a las 9:00 (blog Favorite Grampy, oct 2026; no lo confirma Universal). Se compra por agente o en el Ticket Center del hotel, ≈ US$ 20 adulto y 14 menor. Falta confirmar que siga en diciembre y elegir el día."],
-  ["t15","Decidir el sábado 19 a la noche si el martes 22 repiten Epic","La agencia confirmó que la entrada del paquete permite repetir Epic. Si los chicos quieren volver, cambien el parque del martes en el Horario y el día se rearma solo."],
+  ["t15","Confirmar con la agencia los 2 días de Epic (sábado 19 y lunes 21)","La agencia ya dijo que la entrada del paquete permite repetir Epic: que lo confirmen para esas dos fechas. Si al final no quieren volver, cambien el parque del lunes en el Horario y el día se rearma solo."],
   ["t14","Cancelar el Airbnb","Se puede cancelar sin costo. Hacerlo cuando los paquetes estén confirmados."],
   ["t5","Medir a la de 6 años con zapatillas","Si llega a 122 cm sube a Hagrid's, Forbidden Journey, TRON y Stardust Racers."],
   ["t6","Instalar las apps: Universal Orlando y My Disney Experience","Horarios de shows, filas virtuales y Express se manejan desde ahí."],
